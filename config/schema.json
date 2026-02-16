@@ -1,0 +1,2872 @@
+{
+  "type": "object",
+  "properties": {
+    "router_type": {
+      "type": "string",
+      "default": "gin"
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": "app"
+        },
+        "environment": {
+          "type": "string",
+          "default": "production"
+        }
+      },
+      "default": {
+        "Name": "app",
+        "Environment": "production"
+      },
+      "additionalProperties": false
+    },
+    "http": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "default": 8080
+        },
+        "read_timeout": {
+          "type": "string",
+          "default": "30s"
+        },
+        "write_timeout": {
+          "type": "string",
+          "default": "30s"
+        },
+        "idle_timeout": {
+          "type": "string",
+          "default": "2m0s"
+        },
+        "max_request_size": {
+          "type": "integer",
+          "default": 1048576
+        }
+      },
+      "default": {
+        "Port": 8080,
+        "ReadTimeout": 30000000000,
+        "WriteTimeout": 30000000000,
+        "IdleTimeout": 120000000000,
+        "MaxRequestSize": 1048576
+      },
+      "additionalProperties": false
+    },
+    "management": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "port": {
+          "type": "integer",
+          "default": 9090
+        },
+        "read_timeout": {
+          "type": "string",
+          "default": "10s"
+        },
+        "write_timeout": {
+          "type": "string",
+          "default": "10s"
+        },
+        "auth_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "mtls_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "tls_cert_file": {
+          "type": "string",
+          "default": ""
+        },
+        "tls_key_file": {
+          "type": "string",
+          "default": ""
+        },
+        "tls_ca_file": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "default": {
+        "Enabled": true,
+        "Port": 9090,
+        "ReadTimeout": 10000000000,
+        "WriteTimeout": 10000000000,
+        "AuthEnabled": false,
+        "MTLSEnabled": false,
+        "TLSCertFile": "",
+        "TLSKeyFile": "",
+        "TLSCAFile": ""
+      },
+      "additionalProperties": false
+    },
+    "cors": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_all_origins": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_origins": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "allow_methods": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS"
+          ]
+        },
+        "allow_private_network": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_headers": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "expose_headers": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "allow_credentials": {
+          "type": "boolean",
+          "default": false
+        },
+        "max_age": {
+          "type": "string",
+          "default": "12h0m0s"
+        },
+        "allow_wildcard": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_browser_extensions": {
+          "type": "boolean",
+          "default": false
+        },
+        "custom_schemas": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "allow_websockets": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_files": {
+          "type": "boolean",
+          "default": false
+        },
+        "options_response_status_code": {
+          "type": "integer",
+          "default": 204
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "AllowAllOrigins": false,
+        "AllowOrigins": [],
+        "AllowMethods": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "HEAD",
+          "OPTIONS"
+        ],
+        "AllowPrivateNetwork": false,
+        "AllowHeaders": [],
+        "ExposeHeaders": [],
+        "AllowCredentials": false,
+        "MaxAge": 43200000000000,
+        "AllowWildcard": false,
+        "AllowBrowserExtensions": false,
+        "CustomSchemas": [],
+        "AllowWebSockets": false,
+        "AllowFiles": false,
+        "OptionsResponseStatusCode": 204
+      },
+      "additionalProperties": false
+    },
+    "security_headers": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "is_development": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_hosts": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ssl_redirect": {
+          "type": "boolean",
+          "default": false
+        },
+        "ssl_temporary_redirect": {
+          "type": "boolean",
+          "default": false
+        },
+        "ssl_host": {
+          "type": "string",
+          "default": ""
+        },
+        "ssl_proxy_headers": {
+          "type": "object",
+          "default": {
+            "X-Forwarded-Proto": "https"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dont_redirect_ipv4_hostnames": {
+          "type": "boolean",
+          "default": true
+        },
+        "sts_seconds": {
+          "type": "integer",
+          "default": 31536000
+        },
+        "sts_include_subdomains": {
+          "type": "boolean",
+          "default": true
+        },
+        "sts_preload": {
+          "type": "boolean",
+          "default": false
+        },
+        "custom_frame_options": {
+          "type": "string",
+          "default": "DENY"
+        },
+        "content_type_nosniff": {
+          "type": "boolean",
+          "default": true
+        },
+        "content_security_policy": {
+          "type": "string",
+          "default": "default-src 'self'"
+        },
+        "referrer_policy": {
+          "type": "string",
+          "default": "strict-origin-when-cross-origin"
+        },
+        "permissions_policy": {
+          "type": "string",
+          "default": "geolocation=()"
+        },
+        "ie_no_open": {
+          "type": "boolean",
+          "default": true
+        },
+        "x_dns_prefetch_control": {
+          "type": "string",
+          "default": "off"
+        },
+        "cross_origin_opener_policy": {
+          "type": "string",
+          "default": "same-origin"
+        },
+        "cross_origin_resource_policy": {
+          "type": "string",
+          "default": "same-origin"
+        },
+        "cross_origin_embedder_policy": {
+          "type": "string",
+          "default": ""
+        },
+        "custom_headers": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "default": {
+        "Enabled": true,
+        "IsDevelopment": false,
+        "AllowedHosts": [],
+        "SSLRedirect": false,
+        "SSLTemporaryRedirect": false,
+        "SSLHost": "",
+        "SSLProxyHeaders": {
+          "X-Forwarded-Proto": "https"
+        },
+        "DontRedirectIPV4Hostnames": true,
+        "STSSeconds": 31536000,
+        "STSIncludeSubdomains": true,
+        "STSPreload": false,
+        "CustomFrameOptions": "DENY",
+        "ContentTypeNosniff": true,
+        "ContentSecurityPolicy": "default-src 'self'",
+        "ReferrerPolicy": "strict-origin-when-cross-origin",
+        "PermissionsPolicy": "geolocation=()",
+        "IENoOpen": true,
+        "XDNSPrefetchControl": "off",
+        "CrossOriginOpenerPolicy": "same-origin",
+        "CrossOriginResourcePolicy": "same-origin",
+        "CrossOriginEmbedderPolicy": "",
+        "CustomHeaders": {}
+      },
+      "additionalProperties": false
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "http_signature": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "key_id_header": {
+              "type": "string",
+              "default": "X-Key-Id"
+            },
+            "timestamp_header": {
+              "type": "string",
+              "default": "X-Timestamp"
+            },
+            "nonce_header": {
+              "type": "string",
+              "default": "X-Nonce"
+            },
+            "signature_header": {
+              "type": "string",
+              "default": "X-Signature"
+            },
+            "max_clock_skew": {
+              "type": "string",
+              "default": "5m0s"
+            },
+            "nonce_ttl": {
+              "type": "string",
+              "default": "10m0s"
+            },
+            "require_nonce": {
+              "type": "boolean",
+              "default": true
+            },
+            "excluded_path_prefixes": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "/health",
+                "/metrics",
+                "/ready",
+                "/version"
+              ]
+            },
+            "static_keys": {
+              "type": "object",
+              "default": {},
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {
+            "Enabled": false,
+            "KeyIDHeader": "X-Key-Id",
+            "TimestampHeader": "X-Timestamp",
+            "NonceHeader": "X-Nonce",
+            "SignatureHeader": "X-Signature",
+            "MaxClockSkew": 300000000000,
+            "NonceTTL": 600000000000,
+            "RequireNonce": true,
+            "ExcludedPathPrefixes": [
+              "/health",
+              "/metrics",
+              "/ready",
+              "/version"
+            ],
+            "StaticKeys": {}
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "HTTPSignature": {
+          "Enabled": false,
+          "KeyIDHeader": "X-Key-Id",
+          "TimestampHeader": "X-Timestamp",
+          "NonceHeader": "X-Nonce",
+          "SignatureHeader": "X-Signature",
+          "MaxClockSkew": 300000000000,
+          "NonceTTL": 600000000000,
+          "RequireNonce": true,
+          "ExcludedPathPrefixes": [
+            "/health",
+            "/metrics",
+            "/ready",
+            "/version"
+          ],
+          "StaticKeys": {}
+        }
+      },
+      "additionalProperties": false
+    },
+    "i18n": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "default_locale": {
+          "type": "string",
+          "default": "en"
+        },
+        "supported_locales": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "en"
+          ]
+        },
+        "query_param": {
+          "type": "string",
+          "default": "lang"
+        },
+        "header_name": {
+          "type": "string",
+          "default": "X-Locale"
+        },
+        "fallback_mode": {
+          "type": "string",
+          "default": "base"
+        },
+        "catalog_path": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "DefaultLocale": "en",
+        "SupportedLocales": [
+          "en"
+        ],
+        "QueryParam": "lang",
+        "HeaderName": "X-Locale",
+        "FallbackMode": "base",
+        "CatalogPath": ""
+      },
+      "additionalProperties": false
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "store": {
+          "type": "string",
+          "default": "inmemory"
+        },
+        "ttl": {
+          "type": "string",
+          "default": "12h0m0s"
+        },
+        "idle_timeout": {
+          "type": "string",
+          "default": "30m0s"
+        },
+        "cookie_name": {
+          "type": "string",
+          "default": "sid"
+        },
+        "cookie_path": {
+          "type": "string",
+          "default": "/"
+        },
+        "cookie_domain": {
+          "type": "string",
+          "default": ""
+        },
+        "cookie_secure": {
+          "type": "boolean",
+          "default": true
+        },
+        "cookie_http_only": {
+          "type": "boolean",
+          "default": true
+        },
+        "cookie_same_site": {
+          "type": "string",
+          "default": "lax"
+        },
+        "auto_create": {
+          "type": "boolean",
+          "default": true
+        },
+        "redis": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": ""
+            },
+            "max_conns": {
+              "type": "integer",
+              "default": 10
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "5s"
+            },
+            "prefix": {
+              "type": "string",
+              "default": "session"
+            }
+          },
+          "default": {
+            "URL": "",
+            "MaxConns": 10,
+            "OperationTimeout": 5000000000,
+            "Prefix": "session"
+          },
+          "additionalProperties": false
+        },
+        "memcached": {
+          "type": "object",
+          "properties": {
+            "addresses": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "timeout": {
+              "type": "string",
+              "default": "500ms"
+            },
+            "prefix": {
+              "type": "string",
+              "default": "session"
+            }
+          },
+          "default": {
+            "Addresses": [],
+            "Timeout": 500000000,
+            "Prefix": "session"
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Store": "inmemory",
+        "TTL": 43200000000000,
+        "IdleTimeout": 1800000000000,
+        "CookieName": "sid",
+        "CookiePath": "/",
+        "CookieDomain": "",
+        "CookieSecure": true,
+        "CookieHTTPOnly": true,
+        "CookieSameSite": "lax",
+        "AutoCreate": true,
+        "Redis": {
+          "URL": "",
+          "MaxConns": 10,
+          "OperationTimeout": 5000000000,
+          "Prefix": "session"
+        },
+        "Memcached": {
+          "Addresses": [],
+          "Timeout": 500000000,
+          "Prefix": "session"
+        }
+      },
+      "additionalProperties": false
+    },
+    "csrf": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "header_name": {
+          "type": "string",
+          "default": "X-CSRF-Token"
+        },
+        "cookie_name": {
+          "type": "string",
+          "default": "XSRF-TOKEN"
+        },
+        "cookie_path": {
+          "type": "string",
+          "default": "/"
+        },
+        "cookie_domain": {
+          "type": "string",
+          "default": ""
+        },
+        "cookie_secure": {
+          "type": "boolean",
+          "default": true
+        },
+        "cookie_same_site": {
+          "type": "string",
+          "default": "lax"
+        },
+        "cookie_ttl": {
+          "type": "string",
+          "default": "12h0m0s"
+        },
+        "exempt_methods": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "GET",
+            "HEAD",
+            "OPTIONS",
+            "TRACE"
+          ]
+        },
+        "exempt_paths": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "HeaderName": "X-CSRF-Token",
+        "CookieName": "XSRF-TOKEN",
+        "CookiePath": "/",
+        "CookieDomain": "",
+        "CookieSecure": true,
+        "CookieSameSite": "lax",
+        "CookieTTL": 43200000000000,
+        "ExemptMethods": [
+          "GET",
+          "HEAD",
+          "OPTIONS",
+          "TRACE"
+        ],
+        "ExemptPaths": []
+      },
+      "additionalProperties": false
+    },
+    "sse": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "endpoint": {
+          "type": "string",
+          "default": "/events"
+        },
+        "store": {
+          "type": "string",
+          "default": "inmemory"
+        },
+        "bus": {
+          "type": "string",
+          "default": "none"
+        },
+        "replay_limit": {
+          "type": "integer",
+          "default": 100
+        },
+        "client_buffer": {
+          "type": "integer",
+          "default": 64
+        },
+        "max_connections": {
+          "type": "integer",
+          "default": 10000
+        },
+        "heartbeat_interval": {
+          "type": "string",
+          "default": "20s"
+        },
+        "default_retry_ms": {
+          "type": "integer",
+          "default": 3000
+        },
+        "drop_on_backpressure": {
+          "type": "boolean",
+          "default": true
+        },
+        "channel_query_param": {
+          "type": "string",
+          "default": "channel"
+        },
+        "tenant_query_param": {
+          "type": "string",
+          "default": "tenant"
+        },
+        "subject_query_param": {
+          "type": "string",
+          "default": "subject"
+        },
+        "last_event_id_query_param": {
+          "type": "string",
+          "default": "last_event_id"
+        },
+        "redis": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": ""
+            },
+            "max_conns": {
+              "type": "integer",
+              "default": 10
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "3s"
+            },
+            "history_prefix": {
+              "type": "string",
+              "default": "sse:history"
+            },
+            "pubsub_prefix": {
+              "type": "string",
+              "default": "sse:bus"
+            }
+          },
+          "default": {
+            "URL": "",
+            "MaxConns": 10,
+            "OperationTimeout": 3000000000,
+            "HistoryPrefix": "sse:history",
+            "PubSubPrefix": "sse:bus"
+          },
+          "additionalProperties": false
+        },
+        "eventbus": {
+          "type": "object",
+          "properties": {
+            "topic_prefix": {
+              "type": "string",
+              "default": "sse"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "5s"
+            }
+          },
+          "default": {
+            "TopicPrefix": "sse",
+            "OperationTimeout": 5000000000
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Endpoint": "/events",
+        "Store": "inmemory",
+        "Bus": "none",
+        "ReplayLimit": 100,
+        "ClientBuffer": 64,
+        "MaxConnections": 10000,
+        "HeartbeatInterval": 20000000000,
+        "DefaultRetryMS": 3000,
+        "DropOnBackpressure": true,
+        "ChannelQueryParam": "channel",
+        "TenantQueryParam": "tenant",
+        "SubjectQueryParam": "subject",
+        "LastEventIDQueryParam": "last_event_id",
+        "Redis": {
+          "URL": "",
+          "MaxConns": 10,
+          "OperationTimeout": 3000000000,
+          "HistoryPrefix": "sse:history",
+          "PubSubPrefix": "sse:bus"
+        },
+        "EventBus": {
+          "TopicPrefix": "sse",
+          "OperationTimeout": 5000000000
+        }
+      },
+      "additionalProperties": false
+    },
+    "email": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "provider": {
+          "type": "string",
+          "default": "smtp"
+        },
+        "smtp": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "default": ""
+            },
+            "port": {
+              "type": "integer",
+              "default": 587
+            },
+            "username": {
+              "type": "string",
+              "default": ""
+            },
+            "password": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "enable_tls": {
+              "type": "boolean",
+              "default": false
+            },
+            "insecure_skip_verify": {
+              "type": "boolean",
+              "default": false
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Host": "",
+            "Port": 587,
+            "Username": "",
+            "Password": "",
+            "From": "",
+            "EnableTLS": false,
+            "InsecureSkipVerify": false,
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "ses": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string",
+              "default": ""
+            },
+            "endpoint": {
+              "type": "string",
+              "default": ""
+            },
+            "access_key_id": {
+              "type": "string",
+              "default": ""
+            },
+            "secret_access_key": {
+              "type": "string",
+              "default": ""
+            },
+            "session_token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Region": "",
+            "Endpoint": "",
+            "AccessKeyID": "",
+            "SecretAccessKey": "",
+            "SessionToken": "",
+            "From": "",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "sendgrid": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.sendgrid.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://api.sendgrid.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "mailgun": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "domain": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.mailgun.net"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "Domain": "",
+            "From": "",
+            "BaseURL": "https://api.mailgun.net",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "mailchimp": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://mandrillapp.com/api/1.0"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://mandrillapp.com/api/1.0",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "mailersend": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.mailersend.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://api.mailersend.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "postmark": {
+          "type": "object",
+          "properties": {
+            "server_token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.postmarkapp.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "ServerToken": "",
+            "From": "",
+            "BaseURL": "https://api.postmarkapp.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "mailtrap": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://send.api.mailtrap.io"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://send.api.mailtrap.io",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "smtp2go": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.smtp2go.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://api.smtp2go.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "sendpulse": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.sendpulse.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://api.sendpulse.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "brevo": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.brevo.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "Token": "",
+            "From": "",
+            "BaseURL": "https://api.brevo.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        },
+        "mailjet": {
+          "type": "object",
+          "properties": {
+            "api_key": {
+              "type": "string",
+              "default": ""
+            },
+            "api_secret": {
+              "type": "string",
+              "default": ""
+            },
+            "from": {
+              "type": "string",
+              "default": ""
+            },
+            "base_url": {
+              "type": "string",
+              "default": "https://api.mailjet.com"
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            }
+          },
+          "default": {
+            "APIKey": "",
+            "APISecret": "",
+            "From": "",
+            "BaseURL": "https://api.mailjet.com",
+            "OperationTimeout": 10000000000
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Provider": "smtp",
+        "SMTP": {
+          "Host": "",
+          "Port": 587,
+          "Username": "",
+          "Password": "",
+          "From": "",
+          "EnableTLS": false,
+          "InsecureSkipVerify": false,
+          "OperationTimeout": 10000000000
+        },
+        "SES": {
+          "Region": "",
+          "Endpoint": "",
+          "AccessKeyID": "",
+          "SecretAccessKey": "",
+          "SessionToken": "",
+          "From": "",
+          "OperationTimeout": 10000000000
+        },
+        "SendGrid": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://api.sendgrid.com",
+          "OperationTimeout": 10000000000
+        },
+        "Mailgun": {
+          "Token": "",
+          "Domain": "",
+          "From": "",
+          "BaseURL": "https://api.mailgun.net",
+          "OperationTimeout": 10000000000
+        },
+        "Mailchimp": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://mandrillapp.com/api/1.0",
+          "OperationTimeout": 10000000000
+        },
+        "MailerSend": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://api.mailersend.com",
+          "OperationTimeout": 10000000000
+        },
+        "Postmark": {
+          "ServerToken": "",
+          "From": "",
+          "BaseURL": "https://api.postmarkapp.com",
+          "OperationTimeout": 10000000000
+        },
+        "Mailtrap": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://send.api.mailtrap.io",
+          "OperationTimeout": 10000000000
+        },
+        "SMTP2GO": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://api.smtp2go.com",
+          "OperationTimeout": 10000000000
+        },
+        "SendPulse": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://api.sendpulse.com",
+          "OperationTimeout": 10000000000
+        },
+        "Brevo": {
+          "Token": "",
+          "From": "",
+          "BaseURL": "https://api.brevo.com",
+          "OperationTimeout": 10000000000
+        },
+        "Mailjet": {
+          "APIKey": "",
+          "APISecret": "",
+          "From": "",
+          "BaseURL": "https://api.mailjet.com",
+          "OperationTimeout": 10000000000
+        }
+      },
+      "additionalProperties": false
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "issuer": {
+          "type": "string",
+          "default": ""
+        },
+        "jwks_url": {
+          "type": "string",
+          "default": ""
+        },
+        "jwks_cache_ttl": {
+          "type": "string",
+          "default": "1h0m0s"
+        },
+        "audience": {
+          "type": "string",
+          "default": ""
+        },
+        "claims": {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "claim": {
+                    "type": "string"
+                  },
+                  "aliases": {
+                    "type": [
+                      "null",
+                      "array"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "operator": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "type": [
+                      "null",
+                      "array"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "optional": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "claim",
+                  "aliases",
+                  "source",
+                  "key",
+                  "operator",
+                  "values",
+                  "optional"
+                ],
+                "additionalProperties": false
+              },
+              "default": null
+            },
+            "mappings": {
+              "type": "object",
+              "default": {
+                "audience": [
+                  "aud"
+                ],
+                "issuer": [
+                  "iss"
+                ],
+                "roles": [
+                  "role",
+                  "roles"
+                ],
+                "scopes": [
+                  "scope",
+                  "scopes"
+                ],
+                "subject": [
+                  "sub"
+                ],
+                "tenant_id": [
+                  "tenant_id",
+                  "tenantId"
+                ]
+              },
+              "additionalProperties": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "Rules": null,
+            "Mappings": {
+              "audience": [
+                "aud"
+              ],
+              "issuer": [
+                "iss"
+              ],
+              "roles": [
+                "role",
+                "roles"
+              ],
+              "scopes": [
+                "scope",
+                "scopes"
+              ],
+              "subject": [
+                "sub"
+              ],
+              "tenant_id": [
+                "tenant_id",
+                "tenantId"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Issuer": "",
+        "JWKSUrl": "",
+        "JWKSCacheTTL": 3600000000000,
+        "Audience": "",
+        "Claims": {
+          "Rules": null,
+          "Mappings": {
+            "audience": [
+              "aud"
+            ],
+            "issuer": [
+              "iss"
+            ],
+            "roles": [
+              "role",
+              "roles"
+            ],
+            "scopes": [
+              "scope",
+              "scopes"
+            ],
+            "subject": [
+              "sub"
+            ],
+            "tenant_id": [
+              "tenant_id",
+              "tenantId"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": ""
+        },
+        "url": {
+          "type": "string",
+          "default": ""
+        },
+        "max_open_conns": {
+          "type": "integer",
+          "default": 25
+        },
+        "max_idle_conns": {
+          "type": "integer",
+          "default": 5
+        },
+        "conn_max_lifetime": {
+          "type": "string",
+          "default": "5m0s"
+        },
+        "query_timeout": {
+          "type": "string",
+          "default": "10s"
+        },
+        "database_name": {
+          "type": "string",
+          "default": ""
+        },
+        "connect_timeout": {
+          "type": "string",
+          "default": "5s"
+        },
+        "region": {
+          "type": "string",
+          "default": ""
+        },
+        "endpoint": {
+          "type": "string",
+          "default": ""
+        },
+        "access_key_id": {
+          "type": "string",
+          "default": ""
+        },
+        "secret_access_key": {
+          "type": "string",
+          "default": ""
+        },
+        "session_token": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "default": {
+        "Type": "",
+        "URL": "",
+        "MaxOpenConns": 25,
+        "MaxIdleConns": 5,
+        "ConnMaxLifetime": 300000000000,
+        "QueryTimeout": 10000000000,
+        "DatabaseName": "",
+        "ConnectTimeout": 5000000000,
+        "Region": "",
+        "Endpoint": "",
+        "AccessKeyID": "",
+        "SecretAccessKey": "",
+        "SessionToken": ""
+      },
+      "additionalProperties": false
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": ""
+        },
+        "url": {
+          "type": "string",
+          "default": ""
+        },
+        "max_conns": {
+          "type": "integer",
+          "default": 10
+        },
+        "operation_timeout": {
+          "type": "string",
+          "default": "5s"
+        }
+      },
+      "default": {
+        "Type": "",
+        "URL": "",
+        "MaxConns": 10,
+        "OperationTimeout": 5000000000
+      },
+      "additionalProperties": false
+    },
+    "object_storage": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "type": {
+          "type": "string",
+          "default": "s3"
+        },
+        "s3": {
+          "type": "object",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "default": ""
+            },
+            "region": {
+              "type": "string",
+              "default": "eu-west-1"
+            },
+            "endpoint": {
+              "type": "string",
+              "default": ""
+            },
+            "access_key_id": {
+              "type": "string",
+              "default": ""
+            },
+            "secret_access_key": {
+              "type": "string",
+              "default": ""
+            },
+            "session_token": {
+              "type": "string",
+              "default": ""
+            },
+            "use_path_style": {
+              "type": "boolean",
+              "default": false
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "10s"
+            },
+            "presign_expiry": {
+              "type": "string",
+              "default": "15m0s"
+            }
+          },
+          "default": {
+            "Bucket": "",
+            "Region": "eu-west-1",
+            "Endpoint": "",
+            "AccessKeyID": "",
+            "SecretAccessKey": "",
+            "SessionToken": "",
+            "UsePathStyle": false,
+            "OperationTimeout": 10000000000,
+            "PresignExpiry": 900000000000
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Type": "s3",
+        "S3": {
+          "Bucket": "",
+          "Region": "eu-west-1",
+          "Endpoint": "",
+          "AccessKeyID": "",
+          "SecretAccessKey": "",
+          "SessionToken": "",
+          "UsePathStyle": false,
+          "OperationTimeout": 10000000000,
+          "PresignExpiry": 900000000000
+        }
+      },
+      "additionalProperties": false
+    },
+    "search": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": ""
+        },
+        "driver": {
+          "type": "string",
+          "default": "http"
+        },
+        "url": {
+          "type": "string",
+          "default": ""
+        },
+        "urls": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "username": {
+          "type": "string",
+          "default": ""
+        },
+        "password": {
+          "type": "string",
+          "default": ""
+        },
+        "api_key": {
+          "type": "string",
+          "default": ""
+        },
+        "aws_auth_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "aws_region": {
+          "type": "string",
+          "default": ""
+        },
+        "aws_service": {
+          "type": "string",
+          "default": "es"
+        },
+        "aws_access_key_id": {
+          "type": "string",
+          "default": ""
+        },
+        "aws_secret_access_key": {
+          "type": "string",
+          "default": ""
+        },
+        "aws_session_token": {
+          "type": "string",
+          "default": ""
+        },
+        "max_conns": {
+          "type": "integer",
+          "default": 10
+        },
+        "operation_timeout": {
+          "type": "string",
+          "default": "5s"
+        }
+      },
+      "default": {
+        "Type": "",
+        "Driver": "http",
+        "URL": "",
+        "URLs": null,
+        "Username": "",
+        "Password": "",
+        "APIKey": "",
+        "AWSAuthEnabled": false,
+        "AWSRegion": "",
+        "AWSService": "es",
+        "AWSAccessKeyID": "",
+        "AWSSecretKey": "",
+        "AWSSessionToken": "",
+        "MaxConns": 10,
+        "OperationTimeout": 5000000000
+      },
+      "additionalProperties": false
+    },
+    "event_bus": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": ""
+        },
+        "brokers": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "serializer": {
+          "type": "string",
+          "default": "json"
+        },
+        "operation_timeout": {
+          "type": "string",
+          "default": "30s"
+        },
+        "group_id": {
+          "type": "string",
+          "default": "default-consumer-group"
+        },
+        "url": {
+          "type": "string",
+          "default": ""
+        },
+        "exchange": {
+          "type": "string",
+          "default": "events"
+        },
+        "exchange_type": {
+          "type": "string",
+          "default": "topic"
+        },
+        "queue_name": {
+          "type": "string",
+          "default": ""
+        },
+        "routing_key": {
+          "type": "string",
+          "default": ""
+        },
+        "consumer_tag": {
+          "type": "string",
+          "default": ""
+        },
+        "region": {
+          "type": "string",
+          "default": ""
+        },
+        "queue_url": {
+          "type": "string",
+          "default": ""
+        },
+        "endpoint": {
+          "type": "string",
+          "default": ""
+        },
+        "access_key_id": {
+          "type": "string",
+          "default": ""
+        },
+        "secret_access_key": {
+          "type": "string",
+          "default": ""
+        },
+        "session_token": {
+          "type": "string",
+          "default": ""
+        },
+        "wait_time_seconds": {
+          "type": "integer",
+          "default": 10,
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "max_messages": {
+          "type": "integer",
+          "default": 10,
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "visibility_timeout": {
+          "type": "integer",
+          "default": 0,
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        }
+      },
+      "default": {
+        "Type": "",
+        "Brokers": null,
+        "Serializer": "json",
+        "OperationTimeout": 30000000000,
+        "GroupID": "default-consumer-group",
+        "URL": "",
+        "Exchange": "events",
+        "ExchangeType": "topic",
+        "QueueName": "",
+        "RoutingKey": "",
+        "ConsumerTag": "",
+        "Region": "",
+        "QueueURL": "",
+        "Endpoint": "",
+        "AccessKeyID": "",
+        "SecretAccessKey": "",
+        "SessionToken": "",
+        "WaitTimeSeconds": 10,
+        "MaxMessages": 10,
+        "VisibilityTimeout": 0
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "kafka": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "mode": {
+              "type": "string",
+              "default": "enforce"
+            },
+            "descriptor_path": {
+              "type": "string",
+              "default": "events/proto/schema.pb"
+            },
+            "default_policy": {
+              "type": "string",
+              "default": "BACKWARD"
+            },
+            "subjects": {
+              "type": "object",
+              "default": {},
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "default": {
+            "Enabled": false,
+            "Mode": "enforce",
+            "DescriptorPath": "events/proto/schema.pb",
+            "DefaultPolicy": "BACKWARD",
+            "Subjects": {}
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Kafka": {
+          "Enabled": false,
+          "Mode": "enforce",
+          "DescriptorPath": "events/proto/schema.pb",
+          "DefaultPolicy": "BACKWARD",
+          "Subjects": {}
+        }
+      },
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "log_level": {
+          "type": "string",
+          "default": "info"
+        },
+        "log_format": {
+          "type": "string",
+          "default": "json"
+        },
+        "tracing_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "tracing_sample_rate": {
+          "type": "number",
+          "default": 0.1
+        },
+        "tracing_endpoint": {
+          "type": "string",
+          "default": ""
+        },
+        "async_logging": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "queue_size": {
+              "type": "integer",
+              "default": 1024
+            },
+            "worker_count": {
+              "type": "integer",
+              "default": 1
+            },
+            "drop_when_full": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "default": {
+            "Enabled": false,
+            "QueueSize": 1024,
+            "WorkerCount": 1,
+            "DropWhenFull": true
+          },
+          "additionalProperties": false
+        },
+        "request_logging": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "log_start": {
+              "type": "boolean",
+              "default": true
+            },
+            "output": {
+              "type": "string",
+              "default": "logger"
+            },
+            "fields": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "request_id",
+                "method",
+                "path",
+                "status",
+                "duration_ms",
+                "remote_addr",
+                "error"
+              ]
+            },
+            "excluded_path_prefixes": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "path_policies": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path_prefix": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path_prefix",
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "default": {
+            "Enabled": true,
+            "LogStart": true,
+            "Output": "logger",
+            "Fields": [
+              "request_id",
+              "method",
+              "path",
+              "status",
+              "duration_ms",
+              "remote_addr",
+              "error"
+            ],
+            "ExcludedPathPrefixes": [],
+            "PathPolicies": []
+          },
+          "additionalProperties": false
+        },
+        "request_tracing": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "excluded_path_prefixes": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "path_policies": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path_prefix": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path_prefix",
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "default": {
+            "Enabled": true,
+            "ExcludedPathPrefixes": [],
+            "PathPolicies": []
+          },
+          "additionalProperties": false
+        },
+        "request_timeout": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "default": {
+              "type": "string",
+              "default": "15s"
+            },
+            "excluded_path_prefixes": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "path_policies": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path_prefix": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path_prefix",
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "default": {
+            "Enabled": false,
+            "Default": 15000000000,
+            "ExcludedPathPrefixes": [],
+            "PathPolicies": []
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "LogLevel": "info",
+        "LogFormat": "json",
+        "TracingEnabled": false,
+        "TracingSampleRate": 0.1,
+        "TracingEndpoint": "",
+        "AsyncLogging": {
+          "Enabled": false,
+          "QueueSize": 1024,
+          "WorkerCount": 1,
+          "DropWhenFull": true
+        },
+        "RequestLogging": {
+          "Enabled": true,
+          "LogStart": true,
+          "Output": "logger",
+          "Fields": [
+            "request_id",
+            "method",
+            "path",
+            "status",
+            "duration_ms",
+            "remote_addr",
+            "error"
+          ],
+          "ExcludedPathPrefixes": [],
+          "PathPolicies": []
+        },
+        "RequestTracing": {
+          "Enabled": true,
+          "ExcludedPathPrefixes": [],
+          "PathPolicies": []
+        },
+        "RequestTimeout": {
+          "Enabled": false,
+          "Default": 15000000000,
+          "ExcludedPathPrefixes": [],
+          "PathPolicies": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "swagger": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "spec_path": {
+          "type": "string",
+          "default": "/api/openapi/openapi.yaml"
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "SpecPath": "/api/openapi/openapi.yaml"
+      },
+      "additionalProperties": false
+    },
+    "rate_limit": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "type": {
+          "type": "string",
+          "default": "local"
+        },
+        "requests_per_second": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 1
+        },
+        "burst": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1
+        },
+        "window": {
+          "type": "string",
+          "default": "1s"
+        },
+        "redis": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": ""
+            },
+            "max_conns": {
+              "type": "integer",
+              "default": 10
+            },
+            "operation_timeout": {
+              "type": "string",
+              "default": "5s"
+            },
+            "prefix": {
+              "type": "string",
+              "default": "ratelimit"
+            }
+          },
+          "default": {
+            "URL": "",
+            "MaxConns": 10,
+            "OperationTimeout": 5000000000,
+            "Prefix": "ratelimit"
+          },
+          "additionalProperties": false
+        }
+      },
+      "default": {
+        "Enabled": false,
+        "Type": "local",
+        "RequestsPerSecond": 100,
+        "Burst": 20,
+        "Window": 1000000000,
+        "Redis": {
+          "URL": "",
+          "MaxConns": 10,
+          "OperationTimeout": 5000000000,
+          "Prefix": "ratelimit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "routes": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "object",
+          "default": null,
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "prefix": {
+                "type": "string"
+              },
+              "middlewares": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rate_limit": {
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "requests_per_second": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "burst": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "requests_per_second",
+                  "burst"
+                ],
+                "additionalProperties": false
+              },
+              "auth_endpoints": {
+                "type": [
+                  "null",
+                  "object"
+                ],
+                "properties": {
+                  "me": {
+                    "type": "boolean"
+                  },
+                  "oauth2": {
+                    "type": [
+                      "null",
+                      "object"
+                    ],
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "authorize_url": {
+                        "type": "string"
+                      },
+                      "token_url": {
+                        "type": "string"
+                      },
+                      "audience": {
+                        "type": "string"
+                      },
+                      "client_id": {
+                        "type": "string"
+                      },
+                      "client_secret": {
+                        "type": "string"
+                      },
+                      "redirect_url": {
+                        "type": "string"
+                      },
+                      "scopes": {
+                        "type": [
+                          "null",
+                          "array"
+                        ],
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "post_login_redirect_url": {
+                        "type": "string"
+                      },
+                      "state_cookie_name": {
+                        "type": "string"
+                      },
+                      "cookie_secure": {
+                        "type": "boolean"
+                      },
+                      "cookie_domain": {
+                        "type": "string"
+                      },
+                      "cookie_same_site": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "authorize_url",
+                      "token_url",
+                      "audience",
+                      "client_id",
+                      "client_secret",
+                      "redirect_url",
+                      "scopes",
+                      "post_login_redirect_url",
+                      "state_cookie_name",
+                      "cookie_secure",
+                      "cookie_domain",
+                      "cookie_same_site"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "me",
+                  "oauth2"
+                ],
+                "additionalProperties": false
+              },
+              "routes": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path_prefix": {
+                      "type": "string"
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "strip_prefix": {
+                      "type": "string"
+                    },
+                    "openapi": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "file": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "strict",
+                            "warn-only"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "mode"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "middlewares": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "disable_middlewares": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rate_limit": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "requests_per_second": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "burst": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "requests_per_second",
+                        "burst"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "endpoints": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "middlewares": {
+                            "type": [
+                              "null",
+                              "array"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "disable_middlewares": {
+                            "type": [
+                              "null",
+                              "array"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "methods": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": [
+                                "null",
+                                "object"
+                              ],
+                              "properties": {
+                                "scopes": {
+                                  "type": [
+                                    "null",
+                                    "array"
+                                  ],
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "middlewares": {
+                                  "type": [
+                                    "null",
+                                    "array"
+                                  ],
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "disable_middlewares": {
+                                  "type": [
+                                    "null",
+                                    "array"
+                                  ],
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "rate_limit": {
+                                  "type": [
+                                    "null",
+                                    "object"
+                                  ],
+                                  "properties": {
+                                    "requests_per_second": {
+                                      "type": "integer",
+                                      "minimum": 1
+                                    },
+                                    "burst": {
+                                      "type": "integer",
+                                      "minimum": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "requests_per_second",
+                                    "burst"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "scopes",
+                                "middlewares",
+                                "disable_middlewares",
+                                "rate_limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "middlewares",
+                          "disable_middlewares",
+                          "methods"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "path_prefix",
+                    "target_url",
+                    "strip_prefix",
+                    "openapi",
+                    "middlewares",
+                    "disable_middlewares",
+                    "rate_limit",
+                    "endpoints"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "websockets": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "strip_prefix": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "middlewares": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "disable_middlewares": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rate_limit": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "requests_per_second": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "burst": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "requests_per_second",
+                        "burst"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "target_url",
+                    "strip_prefix",
+                    "scopes",
+                    "middlewares",
+                    "disable_middlewares",
+                    "rate_limit"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "prefix",
+              "middlewares",
+              "rate_limit",
+              "auth_endpoints",
+              "routes",
+              "websockets"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "default": {
+        "Groups": null
+      },
+      "additionalProperties": false
+    },
+    "routes_files": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "default": null
+    }
+  },
+  "$id": "github.com/nimburion/apigateway/config/schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "schema.version=8953612020b38d1dc21029cdc205fb88da891783c187f5d8626f609e684ed8bc",
+  "title": "Service Configuration",
+  "description": "Schema for service configuration.",
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "properties": {
+        "routes_files": {
+          "minItems": 1
+        }
+      },
+      "required": [
+        "routes_files"
+      ]
+    },
+    {
+      "properties": {
+        "routes": {
+          "properties": {
+            "groups": {
+              "minProperties": 1
+            }
+          }
+        }
+      },
+      "required": [
+        "routes"
+      ]
+    }
+  ],
+  "not": {
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "not": {
+              "required": [
+                "routes_files"
+              ]
+            }
+          },
+          {
+            "properties": {
+              "routes_files": {
+                "maxItems": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "anyOf": [
+          {
+            "not": {
+              "required": [
+                "routes"
+              ]
+            }
+          },
+          {
+            "properties": {
+              "routes": {
+                "anyOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "groups"
+                      ]
+                    }
+                  },
+                  {
+                    "properties": {
+                      "groups": {
+                        "maxProperties": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
