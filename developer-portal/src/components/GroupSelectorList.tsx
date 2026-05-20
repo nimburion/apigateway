@@ -9,7 +9,7 @@ interface Props {
   query: string
   onQueryChange: (value: string) => void
   onSelectGroup: (group: string | null) => void
-  searchInputRef?: RefObject<HTMLInputElement>
+  searchInputRef?: RefObject<HTMLInputElement | null>
   variant?: 'sidebar' | 'dialog'
   frameworkGroupNames?: Set<string>
 }
