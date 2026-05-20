@@ -43,7 +43,7 @@ func (r *notFoundLoggingRouter) ServeHTTP(w http.ResponseWriter, req *http.Reque
 
 	if recorder.status == http.StatusNotFound {
 		if r.metrics != nil {
-			frameworkmetrics.RecordHTTPMetrics(req.Method, req.URL.Path, recorder.status, time.Since(start))
+			r.metrics.RecordHTTPMetrics(req.Method, req.URL.Path, recorder.status, time.Since(start))
 		}
 		r.log.Warn(
 			"route not found",
