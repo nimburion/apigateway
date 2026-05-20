@@ -1,0 +1,18 @@
+# Default owners for everything
+* @nimburion/maintainers
+
+# CI/CD workflows
+/.github/ @nimburion/devops
+
+# Security-sensitive packages
+/internal/authn/ @nimburion/security
+/internal/middleware/ @nimburion/security
+/cmd/server/ @nimburion/security
+
+# Platform/runtime adapters
+/internal/configstore/ @nimburion/platform
+/internal/proxy/ @nimburion/platform
+/internal/hotswap/ @nimburion/platform
+
+# Portal frontend
+/developer-portal/ @nimburion/platform

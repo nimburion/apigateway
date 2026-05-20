@@ -1,0 +1,247 @@
+name: Run Verification
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go version to use
+        required: false
+        type: string
+        default: "1.25.8"
+      node-version:
+        description: Node.js version to use for the embedded portal build
+        required: false
+        type: string
+        default: "20"
+      coverage-threshold:
+        description: Minimum coverage percentage required
+        required: false
+        type: number
+        default: 50
+    outputs:
+      coverage:
+        description: Total coverage percentage
+        value: ${{ jobs.coverage.outputs.coverage }}
+
+jobs:
+  vet:
+    name: Vet
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: /tmp/go-build-cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Run go vet
+        run: go vet ./...
+
+  targeted:
+    name: Test - ${{ matrix.lane.name }}
+    needs: vet
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: /tmp/go-build-cache
+      REDIS_URL: redis://localhost:6379/0
+      POSTGRES_URL: postgres://test:test@localhost:5432/testdb?sslmode=disable
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - name: commands
+            command: go test ./cmd ./cmd/config ./cmd/openapi ./cmd/routes ./cmd/server
+          - name: config-routing
+            command: go test ./internal/config ./internal/approutes ./internal/routing
+          - name: portal-handlers
+            command: go test ./internal/handlers ./internal/handlers/auth ./internal/handlers/portal
+          - name: runtime-proxy
+            command: go test ./internal/hotswap ./internal/middleware ./internal/proxy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Run targeted verification lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          ${{ matrix.lane.command }}
+
+  portal:
+    name: Portal Build
+    needs: vet
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: developer-portal/package-lock.json
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: developer-portal
+
+      - name: Build portal
+        run: npm run build
+        working-directory: developer-portal
+
+  full-sweep:
+    name: Test - Full Sweep
+    needs: [targeted, portal]
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: /tmp/go-build-cache
+      REDIS_URL: redis://localhost:6379/0
+      POSTGRES_URL: postgres://test:test@localhost:5432/testdb?sslmode=disable
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Run full repository sweep
+        run: go test ./...
+
+  coverage:
+    name: Coverage Check
+    needs: full-sweep
+    runs-on: ubuntu-latest
+    env:
+      GOCACHE: /tmp/go-build-cache
+      REDIS_URL: redis://localhost:6379/0
+      POSTGRES_URL: postgres://test:test@localhost:5432/testdb?sslmode=disable
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    outputs:
+      coverage: ${{ steps.check.outputs.coverage }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Collect coverage
+        run: go test ./... -covermode=atomic -coverprofile=coverage.out
+
+      - name: Check coverage threshold
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          go tool cover -func=coverage.out | tee coverage.txt
+
+          threshold=${{ inputs.coverage-threshold }}
+          coverage=$(awk '/^total:/ {print $3}' coverage.txt | sed 's/%//')
+          echo "coverage=${coverage}" >> "$GITHUB_OUTPUT"
+          echo "Coverage: ${coverage}% (threshold: ${threshold}%)"
+
+          if (( $(echo "$coverage < $threshold" | bc -l) )); then
+            echo "::error::Coverage ${coverage}% is below threshold ${threshold}%"
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.txt
+          if-no-files-found: error
