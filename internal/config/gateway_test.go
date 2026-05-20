@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func TestGatewayValidate(t *testing.T) {
 	cfg := &Gateway{}
-	if err := cfg.Validate(); err == nil {
-		t.Fatalf("expected error when routes missing")
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error without routes at config validation time: %v", err)
 	}
 
 	cfg = &Gateway{RoutesFiles: []string{"  routes.yaml "}}
@@ -21,6 +21,149 @@ func TestGatewayValidate(t *testing.T) {
 	}
 	if cfg.RoutesFiles[0] != "routes.yaml" {
 		t.Fatalf("expected routes file to be trimmed")
+	}
+}
+
+func TestLoadRoutesRequiresConfiguredSource(t *testing.T) {
+	cfg := &Gateway{}
+	err := cfg.LoadRoutes("", map[string]func() router.MiddlewareFunc{})
+	if err == nil {
+		t.Fatalf("expected error when no route source is configured")
+	}
+	expected := "either routes_files or inline routes must be provided when config_store.source_of_truth=file"
+	if err.Error() != expected {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRoutesDatabaseSourceWithoutMaterializedRoutes(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Routes = Routing{}
+	cfg.RoutesFiles = nil
+	cfg.ConfigStore.SourceOfTruth = ConfigSourceOfTruthDatabase
+
+	err := cfg.LoadRoutes("", map[string]func() router.MiddlewareFunc{})
+	if err == nil {
+		t.Fatalf("expected error when database source has no materialized routes")
+	}
+	if err.Error() != "routes configuration must define at least one group" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGatewayValidateDatabaseSourceOfTruth(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Routes = Routing{}
+	cfg.RoutesFiles = nil
+	cfg.ConfigStore.Enabled = true
+	cfg.ConfigStore.SourceOfTruth = ConfigSourceOfTruthDatabase
+	cfg.ConfigStore.Backend = ConfigStoreBackendPostgres
+	cfg.Database.Type = ConfigStoreBackendPostgres
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected database-backed config to validate, got %v", err)
+	}
+}
+
+func TestGatewayValidateManagedPortalRequiresManagementAndScopes(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.RoutesFiles = []string{"routes.yaml"}
+	cfg.Portal.Mode = PortalModeManaged
+	cfg.Management.Enabled = true
+	cfg.Management.AuthEnabled = true
+	cfg.Portal.Auth.WriteScopes = []string{"management:config:write"}
+	cfg.Portal.Auth.PublishScopes = []string{"management:config:publish"}
+	cfg.Portal.Auth.RollbackScopes = []string{"management:config:rollback"}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected managed portal config to validate, got %v", err)
+	}
+}
+
+func TestGatewayValidateRejectsInvalidCombinations(t *testing.T) {
+	testCases := []struct {
+		name string
+		cfg  *Gateway
+	}{
+		{
+			name: "database source requires config store enabled",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.Routes = Routing{}
+				cfg.RoutesFiles = nil
+				cfg.ConfigStore.SourceOfTruth = ConfigSourceOfTruthDatabase
+				cfg.ConfigStore.Backend = ConfigStoreBackendPostgres
+				cfg.Database.Type = ConfigStoreBackendPostgres
+				return cfg
+			}(),
+		},
+		{
+			name: "database source requires postgres database type",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.Routes = Routing{}
+				cfg.RoutesFiles = nil
+				cfg.ConfigStore.Enabled = true
+				cfg.ConfigStore.SourceOfTruth = ConfigSourceOfTruthDatabase
+				cfg.ConfigStore.Backend = ConfigStoreBackendPostgres
+				cfg.Database.Type = "mysql"
+				return cfg
+			}(),
+		},
+		{
+			name: "managed portal requires management auth",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.RoutesFiles = []string{"routes.yaml"}
+				cfg.Portal.Mode = PortalModeManaged
+				cfg.Management.Enabled = true
+				cfg.Management.AuthEnabled = false
+				cfg.Portal.Auth.WriteScopes = []string{"management:config:write"}
+				cfg.Portal.Auth.PublishScopes = []string{"management:config:publish"}
+				cfg.Portal.Auth.RollbackScopes = []string{"management:config:rollback"}
+				return cfg
+			}(),
+		},
+		{
+			name: "managed portal requires write publish rollback scopes",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.RoutesFiles = []string{"routes.yaml"}
+				cfg.Portal.Mode = PortalModeManaged
+				cfg.Management.Enabled = true
+				cfg.Management.AuthEnabled = true
+				cfg.Portal.Auth.WriteScopes = []string{"management:config:write"}
+				return cfg
+			}(),
+		},
+		{
+			name: "auto reload requires last good cache path",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.RoutesFiles = []string{"routes.yaml"}
+				cfg.ConfigStore.AutoReload = true
+				cfg.ConfigStore.LastGoodCachePath = ""
+				return cfg
+			}(),
+		},
+		{
+			name: "enabled config store requires positive poll interval",
+			cfg: func() *Gateway {
+				cfg := NewDefaultConfig()
+				cfg.RoutesFiles = []string{"routes.yaml"}
+				cfg.ConfigStore.Enabled = true
+				cfg.ConfigStore.PollInterval = 0
+				return cfg
+			}(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.cfg.Validate(); err == nil {
+				t.Fatalf("expected validation error")
+			}
+		})
 	}
 }
 
@@ -189,6 +332,24 @@ func TestNewDefaultConfigAndHelpers(t *testing.T) {
 	}
 	if cfg.Routes.Groups != nil && len(cfg.Routes.Groups) != 0 {
 		t.Fatalf("expected empty default routes")
+	}
+	if cfg.Portal.Mode != PortalModeReadOnly {
+		t.Fatalf("expected portal mode %q, got %q", PortalModeReadOnly, cfg.Portal.Mode)
+	}
+	if !cfg.Portal.Enabled {
+		t.Fatalf("expected portal enabled by default")
+	}
+	if len(cfg.Portal.Auth.ReadScopes) != 1 || cfg.Portal.Auth.ReadScopes[0] != "management:portal" {
+		t.Fatalf("unexpected portal read scopes: %#v", cfg.Portal.Auth.ReadScopes)
+	}
+	if cfg.ConfigStore.SourceOfTruth != ConfigSourceOfTruthFile {
+		t.Fatalf("expected config store source %q, got %q", ConfigSourceOfTruthFile, cfg.ConfigStore.SourceOfTruth)
+	}
+	if cfg.ConfigStore.Backend != "" {
+		t.Fatalf("expected empty config store backend by default, got %q", cfg.ConfigStore.Backend)
+	}
+	if cfg.ConfigStore.PollInterval <= 0 || cfg.ConfigStore.ActivationTimeout <= 0 {
+		t.Fatalf("expected positive config store timing defaults: %#v", cfg.ConfigStore)
 	}
 
 	if !matchesOpenAPIPrefix("/users/{id}", "/users") {

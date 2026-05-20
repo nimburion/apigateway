@@ -7,31 +7,195 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 //go:generate go run ../tools/configschema
 type Gateway struct {
-	Routes      Routing  `mapstructure:"routes"`
-	RoutesFiles []string `mapstructure:"routes_files"`
-	ConfigDir   string   `mapstructure:"-"`
+	Routes      Routing           `mapstructure:"routes"`
+	RoutesFiles []string          `mapstructure:"routes_files"`
+	Portal      PortalConfig      `mapstructure:"portal"`
+	ConfigStore ConfigStoreConfig `mapstructure:"config_store"`
+	Management  ManagementConfig  `mapstructure:"management"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	ConfigDir   string            `mapstructure:"-"`
+}
+
+const (
+	PortalModeReadOnly = "read-only"
+	PortalModeManaged  = "managed"
+
+	ConfigSourceOfTruthFile     = "file"
+	ConfigSourceOfTruthDatabase = "database"
+
+	ConfigStoreBackendPostgres = "postgres"
+)
+
+type PortalConfig struct {
+	Enabled        bool                       `yaml:"enabled" mapstructure:"enabled"`
+	Mode           string                     `yaml:"mode" mapstructure:"mode"`
+	Auth           PortalAuthConfig           `yaml:"auth" mapstructure:"auth"`
+	Catalog        PortalCatalogConfig        `yaml:"catalog" mapstructure:"catalog"`
+	MetricsHistory PortalMetricsHistoryConfig `yaml:"metrics_history" mapstructure:"metrics_history"`
+}
+
+type PortalAuthConfig struct {
+	ReadScopes     []string `yaml:"read_scopes" mapstructure:"read_scopes"`
+	WriteScopes    []string `yaml:"write_scopes" mapstructure:"write_scopes"`
+	PublishScopes  []string `yaml:"publish_scopes" mapstructure:"publish_scopes"`
+	RollbackScopes []string `yaml:"rollback_scopes" mapstructure:"rollback_scopes"`
+}
+
+type PortalCatalogConfig struct {
+	ExposeTargetURLs    bool `yaml:"expose_target_urls" mapstructure:"expose_target_urls"`
+	ExposeOpenAPIErrors bool `yaml:"expose_openapi_errors" mapstructure:"expose_openapi_errors"`
+}
+
+type PortalMetricsHistoryConfig struct {
+	Enabled          bool                            `yaml:"enabled" mapstructure:"enabled"`
+	Backend          string                          `yaml:"backend" mapstructure:"backend"`
+	SnapshotInterval time.Duration                   `yaml:"snapshot_interval" mapstructure:"snapshot_interval"`
+	MaxSnapshots     int                             `yaml:"max_snapshots" mapstructure:"max_snapshots"`
+	MaxAge           time.Duration                   `yaml:"max_age" mapstructure:"max_age"`
+	Redis            PortalMetricsHistoryRedisConfig `yaml:"redis" mapstructure:"redis"`
+}
+
+type PortalMetricsHistoryRedisConfig struct {
+	URL              string        `yaml:"url" mapstructure:"url"`
+	Prefix           string        `yaml:"prefix" mapstructure:"prefix"`
+	MaxConns         int           `yaml:"max_conns" mapstructure:"max_conns"`
+	OperationTimeout time.Duration `yaml:"operation_timeout" mapstructure:"operation_timeout"`
+}
+
+type ConfigStoreConfig struct {
+	Enabled                        bool          `yaml:"enabled" mapstructure:"enabled"`
+	SourceOfTruth                  string        `yaml:"source_of_truth" mapstructure:"source_of_truth"`
+	Backend                        string        `yaml:"backend" mapstructure:"backend"`
+	BootstrapFromFile              bool          `yaml:"bootstrap_from_file" mapstructure:"bootstrap_from_file"`
+	AutoReload                     bool          `yaml:"auto_reload" mapstructure:"auto_reload"`
+	PollInterval                   time.Duration `yaml:"poll_interval" mapstructure:"poll_interval"`
+	ActivationTimeout              time.Duration `yaml:"activation_timeout" mapstructure:"activation_timeout"`
+	LastGoodCachePath              string        `yaml:"last_good_cache_path" mapstructure:"last_good_cache_path"`
+	RequireValidationBeforePublish bool          `yaml:"require_validation_before_publish" mapstructure:"require_validation_before_publish"`
+	RequireBaseVersionMatch        bool          `yaml:"require_base_version_match" mapstructure:"require_base_version_match"`
+}
+
+type ManagementConfig struct {
+	Enabled     bool `mapstructure:"enabled"`
+	AuthEnabled bool `mapstructure:"auth_enabled"`
+}
+
+type DatabaseConfig struct {
+	Type string `mapstructure:"type"`
 }
 
 func NewDefaultConfig() (config *Gateway) {
 	config = &Gateway{
 		Routes:      Routing{},
 		RoutesFiles: nil,
-		ConfigDir:   "",
+		Portal: PortalConfig{
+			Enabled: true,
+			Mode:    PortalModeReadOnly,
+			Auth: PortalAuthConfig{
+				ReadScopes: []string{"management:portal"},
+			},
+			Catalog: PortalCatalogConfig{
+				ExposeTargetURLs:    true,
+				ExposeOpenAPIErrors: true,
+			},
+			MetricsHistory: PortalMetricsHistoryConfig{
+				Enabled:          true,
+				Backend:          "local",
+				SnapshotInterval: time.Minute,
+				MaxSnapshots:     96,
+				MaxAge:           24 * time.Hour,
+				Redis: PortalMetricsHistoryRedisConfig{
+					Prefix:           "nimburion:portal:metrics_history",
+					MaxConns:         10,
+					OperationTimeout: 5 * time.Second,
+				},
+			},
+		},
+		ConfigStore: ConfigStoreConfig{
+			Enabled:                        false,
+			SourceOfTruth:                  ConfigSourceOfTruthFile,
+			Backend:                        "",
+			BootstrapFromFile:              false,
+			AutoReload:                     false,
+			PollInterval:                   10 * time.Second,
+			ActivationTimeout:              5 * time.Second,
+			LastGoodCachePath:              "",
+			RequireValidationBeforePublish: true,
+			RequireBaseVersionMatch:        true,
+		},
+		ConfigDir: "",
 	}
 	return
 }
 
 func (cfg *Gateway) Validate() error {
-	if len(cfg.RoutesFiles) == 0 && len(cfg.Routes.Groups) == 0 {
-		return errors.New("either routes_files or inline routes must be provided")
+	cfg.Portal.Mode = strings.ToLower(strings.TrimSpace(cfg.Portal.Mode))
+	if cfg.Portal.Mode == "" {
+		cfg.Portal.Mode = PortalModeReadOnly
 	}
+	if cfg.Portal.Mode != PortalModeReadOnly && cfg.Portal.Mode != PortalModeManaged {
+		return fmt.Errorf("portal.mode must be %q or %q", PortalModeReadOnly, PortalModeManaged)
+	}
+
+	cfg.ConfigStore.SourceOfTruth = strings.ToLower(strings.TrimSpace(cfg.ConfigStore.SourceOfTruth))
+	if cfg.ConfigStore.SourceOfTruth == "" {
+		cfg.ConfigStore.SourceOfTruth = ConfigSourceOfTruthFile
+	}
+	if cfg.ConfigStore.SourceOfTruth != ConfigSourceOfTruthFile && cfg.ConfigStore.SourceOfTruth != ConfigSourceOfTruthDatabase {
+		return fmt.Errorf("config_store.source_of_truth must be %q or %q", ConfigSourceOfTruthFile, ConfigSourceOfTruthDatabase)
+	}
+
+	cfg.ConfigStore.Backend = strings.ToLower(strings.TrimSpace(cfg.ConfigStore.Backend))
+	cfg.Database.Type = strings.ToLower(strings.TrimSpace(cfg.Database.Type))
+
+	cfg.Portal.Auth.ReadScopes = trimStrings(cfg.Portal.Auth.ReadScopes)
+	cfg.Portal.Auth.WriteScopes = trimStrings(cfg.Portal.Auth.WriteScopes)
+	cfg.Portal.Auth.PublishScopes = trimStrings(cfg.Portal.Auth.PublishScopes)
+	cfg.Portal.Auth.RollbackScopes = trimStrings(cfg.Portal.Auth.RollbackScopes)
+	cfg.ConfigStore.LastGoodCachePath = strings.TrimSpace(cfg.ConfigStore.LastGoodCachePath)
+	cfg.Portal.MetricsHistory.Backend = strings.ToLower(strings.TrimSpace(cfg.Portal.MetricsHistory.Backend))
+	if cfg.Portal.MetricsHistory.Backend == "" {
+		cfg.Portal.MetricsHistory.Backend = "local"
+	}
+	cfg.Portal.MetricsHistory.Redis.URL = strings.TrimSpace(cfg.Portal.MetricsHistory.Redis.URL)
+	cfg.Portal.MetricsHistory.Redis.Prefix = strings.TrimSpace(cfg.Portal.MetricsHistory.Redis.Prefix)
+	if cfg.Portal.MetricsHistory.Redis.Prefix == "" {
+		cfg.Portal.MetricsHistory.Redis.Prefix = "nimburion:portal:metrics_history"
+	}
+	if cfg.Portal.MetricsHistory.Enabled {
+		if cfg.Portal.MetricsHistory.Backend != "local" && cfg.Portal.MetricsHistory.Backend != "redis" {
+			return errors.New("portal.metrics_history.backend must be \"local\" or \"redis\" when metrics history is enabled")
+		}
+		if cfg.Portal.MetricsHistory.SnapshotInterval <= 0 {
+			return errors.New("portal.metrics_history.snapshot_interval must be > 0 when metrics history is enabled")
+		}
+		if cfg.Portal.MetricsHistory.MaxSnapshots <= 0 {
+			return errors.New("portal.metrics_history.max_snapshots must be > 0 when metrics history is enabled")
+		}
+		if cfg.Portal.MetricsHistory.MaxAge <= 0 {
+			return errors.New("portal.metrics_history.max_age must be > 0 when metrics history is enabled")
+		}
+		if cfg.Portal.MetricsHistory.Backend == "redis" {
+			if cfg.Portal.MetricsHistory.Redis.URL == "" {
+				return errors.New("portal.metrics_history.redis.url is required when metrics history backend is redis")
+			}
+			if cfg.Portal.MetricsHistory.Redis.MaxConns <= 0 {
+				return errors.New("portal.metrics_history.redis.max_conns must be > 0 when metrics history backend is redis")
+			}
+			if cfg.Portal.MetricsHistory.Redis.OperationTimeout <= 0 {
+				return errors.New("portal.metrics_history.redis.operation_timeout must be > 0 when metrics history backend is redis")
+			}
+		}
+	}
+
 	for i, path := range cfg.RoutesFiles {
 		trimmed := strings.TrimSpace(path)
 		if trimmed == "" {
@@ -39,11 +203,78 @@ func (cfg *Gateway) Validate() error {
 		}
 		cfg.RoutesFiles[i] = trimmed
 	}
+
+	switch cfg.ConfigStore.SourceOfTruth {
+	case ConfigSourceOfTruthFile:
+	case ConfigSourceOfTruthDatabase:
+		if !cfg.ConfigStore.Enabled {
+			return errors.New("config_store.enabled must be true when config_store.source_of_truth=database")
+		}
+		if cfg.ConfigStore.Backend != ConfigStoreBackendPostgres {
+			return fmt.Errorf("config_store.backend must be %q when config_store.source_of_truth=database", ConfigStoreBackendPostgres)
+		}
+		if cfg.Database.Type != ConfigStoreBackendPostgres {
+			return fmt.Errorf("database.type must be %q when config_store.source_of_truth=database", ConfigStoreBackendPostgres)
+		}
+	}
+
+	if cfg.ConfigStore.Enabled {
+		if cfg.ConfigStore.PollInterval <= 0 {
+			return errors.New("config_store.poll_interval must be > 0 when config_store is enabled")
+		}
+		if cfg.ConfigStore.ActivationTimeout <= 0 {
+			return errors.New("config_store.activation_timeout must be > 0 when config_store is enabled")
+		}
+	}
+
+	if cfg.ConfigStore.AutoReload && cfg.ConfigStore.LastGoodCachePath == "" {
+		return errors.New("config_store.last_good_cache_path is required when config_store.auto_reload=true")
+	}
+
+	if cfg.Portal.Mode == PortalModeManaged {
+		if !cfg.Portal.Enabled {
+			return errors.New("portal.enabled must be true when portal.mode=managed")
+		}
+		if !cfg.Management.Enabled {
+			return errors.New("management.enabled must be true when portal.mode=managed")
+		}
+		if !cfg.Management.AuthEnabled {
+			return errors.New("management.auth_enabled must be true when portal.mode=managed")
+		}
+		if len(cfg.Portal.Auth.WriteScopes) == 0 {
+			return errors.New("portal.auth.write_scopes must not be empty when portal.mode=managed")
+		}
+		if len(cfg.Portal.Auth.PublishScopes) == 0 {
+			return errors.New("portal.auth.publish_scopes must not be empty when portal.mode=managed")
+		}
+		if len(cfg.Portal.Auth.RollbackScopes) == 0 {
+			return errors.New("portal.auth.rollback_scopes must not be empty when portal.mode=managed")
+		}
+	}
+
 	return nil
+}
+
+func trimStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		candidate := strings.TrimSpace(value)
+		if candidate == "" {
+			continue
+		}
+		trimmed = append(trimmed, candidate)
+	}
+	return trimmed
 }
 
 func (cfg *Gateway) LoadRoutes(baseDir string, middlewareRegistry map[string]func() router.MiddlewareFunc) error {
 	if len(cfg.RoutesFiles) == 0 && len(cfg.Routes.Groups) == 0 {
+		if cfg.ConfigStore.SourceOfTruth == "" || cfg.ConfigStore.SourceOfTruth == ConfigSourceOfTruthFile {
+			return errors.New("either routes_files or inline routes must be provided when config_store.source_of_truth=file")
+		}
 		return errors.New("routes configuration must define at least one group")
 	}
 
@@ -88,10 +319,11 @@ func (cfg *Gateway) LoadRoutes(baseDir string, middlewareRegistry map[string]fun
 	if err != nil {
 		return err
 	}
-	if err := validateRouteOpenAPIFiles(normalized); err != nil {
+	docCache, err := loadAndValidateRouteOpenAPIDocs(normalized)
+	if err != nil {
 		return err
 	}
-	if err := validateOpenAPIAlignment(normalized); err != nil {
+	if err := validateOpenAPIAlignment(normalized, docCache); err != nil {
 		return err
 	}
 
@@ -119,46 +351,7 @@ func resolveRouteOpenAPIFiles(routingCfg Routing, baseDir string) (Routing, erro
 	return routingCfg, nil
 }
 
-func validateRouteOpenAPIFiles(routingCfg Routing) error {
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-
-	validated := make(map[string]struct{})
-	for groupName, group := range routingCfg.Groups {
-		for routeIndex, route := range group.Routes {
-			if route.OpenAPI == nil {
-				continue
-			}
-			specPath := route.OpenAPI.ResolvedFile
-			if specPath == "" {
-				specPath = route.OpenAPI.File
-			}
-			if specPath == "" {
-				continue
-			}
-			if _, alreadyValidated := validated[specPath]; alreadyValidated {
-				continue
-			}
-
-			doc, err := loader.LoadFromFile(specPath)
-			if err != nil {
-				routeRef := fmt.Sprintf("groups.%s.routes[%d] (path_prefix=%s)", groupName, routeIndex, route.PathPrefix)
-				if errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("%s: OpenAPI file not found at %q (openapi.file). Relative paths are resolved from the config file directory", routeRef, specPath)
-				}
-				return fmt.Errorf("%s: cannot load OpenAPI file %q: %w", routeRef, specPath, err)
-			}
-			if err := doc.Validate(context.Background()); err != nil {
-				return fmt.Errorf("groups.%s.routes[%d] (path_prefix=%s): OpenAPI file %q is invalid: %w", groupName, routeIndex, route.PathPrefix, specPath, err)
-			}
-			validated[specPath] = struct{}{}
-		}
-	}
-
-	return nil
-}
-
-func validateOpenAPIAlignment(routingCfg Routing) error {
+func loadAndValidateRouteOpenAPIDocs(routingCfg Routing) (map[string]*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
 
@@ -175,15 +368,45 @@ func validateOpenAPIAlignment(routingCfg Routing) error {
 			if specPath == "" {
 				continue
 			}
+			if _, alreadyValidated := docCache[specPath]; alreadyValidated {
+				continue
+			}
+
+			doc, err := loader.LoadFromFile(specPath)
+			if err != nil {
+				routeRef := fmt.Sprintf("groups.%s.routes[%d] (path_prefix=%s)", groupName, routeIndex, route.PathPrefix)
+				if errors.Is(err, os.ErrNotExist) {
+					return nil, fmt.Errorf("%s: OpenAPI file not found at %q (openapi.file). Relative paths are resolved from the config file directory", routeRef, specPath)
+				}
+				return nil, fmt.Errorf("%s: cannot load OpenAPI file %q: %w", routeRef, specPath, err)
+			}
+			if err := doc.Validate(context.Background()); err != nil {
+				return nil, fmt.Errorf("groups.%s.routes[%d] (path_prefix=%s): OpenAPI file %q is invalid: %w", groupName, routeIndex, route.PathPrefix, specPath, err)
+			}
+			docCache[specPath] = doc
+		}
+	}
+
+	return docCache, nil
+}
+
+func validateOpenAPIAlignment(routingCfg Routing, docCache map[string]*openapi3.T) error {
+	for groupName, group := range routingCfg.Groups {
+		for routeIndex, route := range group.Routes {
+			if route.OpenAPI == nil {
+				continue
+			}
+			specPath := route.OpenAPI.ResolvedFile
+			if specPath == "" {
+				specPath = route.OpenAPI.File
+			}
+			if specPath == "" {
+				continue
+			}
 
 			doc, ok := docCache[specPath]
 			if !ok {
-				loaded, err := loader.LoadFromFile(specPath)
-				if err != nil {
-					return fmt.Errorf("load groups.%s.routes[%d].openapi.file (%s): %w", groupName, routeIndex, specPath, err)
-				}
-				docCache[specPath] = loaded
-				doc = loaded
+				return fmt.Errorf("groups.%s.routes[%d] (path_prefix=%s): OpenAPI file %q was not loaded during validation", groupName, routeIndex, route.PathPrefix, specPath)
 			}
 
 			specOps := collectOpenAPISpecOperations(doc, route.PathPrefix)

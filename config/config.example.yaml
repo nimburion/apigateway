@@ -1,0 +1,75 @@
+app:
+  name: api-gateway
+
+auth:
+  enabled: false
+
+http:
+  port: 8080
+
+management:
+  enabled: true
+  port: 9001
+  auth_enabled: false
+
+observability:
+  request_logging:
+    log_start: false
+
+swagger:
+  enabled: true
+  spec_path: /api/openapi/openapi.yaml
+
+portal:
+  enabled: true
+  mode: read-only
+  auth:
+    read_scopes:
+      - management:portal
+  catalog:
+    expose_target_urls: true
+    expose_openapi_errors: true
+
+config_store:
+  enabled: false
+  source_of_truth: file
+  # For HA runtime config updates, set:
+  # enabled: true
+  # source_of_truth: database
+  # backend: postgres
+  # bootstrap_from_file: true
+  # auto_reload: true
+  # poll_interval: 10s
+  # activation_timeout: 5s
+  # last_good_cache_path: /var/lib/apigateway/last-good-routes.json
+
+# database:
+#   type: postgres
+#   url: postgres://user:pass@postgres/service?sslmode=require
+
+routes:
+  groups:
+    V1:
+      auth_endpoints:
+        me: true
+      prefix: /v1
+      metadata:
+        owner_team: platform
+        domain: gateway
+        visibility: public
+        status: active
+        docs_url: https://docs.example.com/gateway
+        support_channel: '#api-support'
+      routes:
+        - path_prefix: /echo
+          target_url: https://echo.free.beeceptor.com
+          metadata:
+            owner_team: platform
+            domain: status
+            visibility: internal
+            status: active
+            runbook_url: https://runbooks.example.com/healthz
+          endpoints:
+            - path: /
+              methods:
+                GET: {}

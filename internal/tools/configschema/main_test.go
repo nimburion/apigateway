@@ -3,9 +3,11 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	gatewaycfg "github.com/nimburion/apigateway/internal/config"
 )
 
 func TestSchemaVersionHashStable(t *testing.T) {
@@ -17,67 +19,123 @@ func TestSchemaVersionHashStable(t *testing.T) {
 	}
 }
 
-func TestRemoveProperty(t *testing.T) {
-	schema := &jsonschema.Schema{
-		Properties: map[string]*jsonschema.Schema{"secret": {}},
-		Required:   []string{"secret"},
-		PropertyOrder: []string{
-			"secret",
-		},
-	}
-
-	removeProperty(schema, "secret")
-	if _, ok := schema.Properties["secret"]; ok {
-		t.Fatalf("expected property to be removed")
-	}
-	if len(schema.Required) != 0 {
-		t.Fatalf("expected required to be pruned")
-	}
-}
-
-func TestAddRoutingConstraints(t *testing.T) {
-	schema := &jsonschema.Schema{}
-	addRoutingConstraints(schema)
-	if len(schema.AnyOf) != 2 {
-		t.Fatalf("expected anyOf constraints, got %d", len(schema.AnyOf))
-	}
-	if schema.Not == nil {
-		t.Fatalf("expected not constraint")
-	}
-}
-
-func TestApplyGatewaySchemaConstraints(t *testing.T) {
+func TestGatewayCustomizeSchemaAddsConstraints(t *testing.T) {
 	schema := &jsonschema.Schema{
 		Properties: map[string]*jsonschema.Schema{
-			"openapi": {
+			"config_dir": {},
+			"portal": {
 				Properties: map[string]*jsonschema.Schema{
-					"file": {},
+					"mode": {},
 				},
 			},
-			"rate_limit": {
-				Properties: map[string]*jsonschema.Schema{},
+			"config_store": {
+				Properties: map[string]*jsonschema.Schema{
+					"source_of_truth": {},
+					"backend":         {},
+				},
+			},
+			"routes": {
+				Properties: map[string]*jsonschema.Schema{
+					"groups": {
+						AdditionalProperties: &jsonschema.Schema{
+							Properties: map[string]*jsonschema.Schema{
+								"metadata": {
+									Properties: map[string]*jsonschema.Schema{
+										"visibility": {},
+										"status":     {},
+									},
+								},
+								"rate_limit": {
+									Properties: map[string]*jsonschema.Schema{},
+								},
+								"routes": {
+									Items: &jsonschema.Schema{
+										Properties: map[string]*jsonschema.Schema{
+											"group": {},
+											"openapi": {
+												Properties: map[string]*jsonschema.Schema{
+													"file":          {},
+													"mode":          {},
+													"resolved_file": {},
+												},
+											},
+										},
+									},
+								},
+								"websockets": {
+									Items: &jsonschema.Schema{
+										Properties: map[string]*jsonschema.Schema{
+											"group": {},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 
-	applyGatewaySchemaConstraints(schema)
-	openapiSchema := schema.Properties["openapi"]
-	if openapiSchema == nil || len(openapiSchema.Properties["mode"].Enum) != 2 {
-		t.Fatalf("expected openapi.mode enum to be set")
+	if err := gatewaycfg.NewDefaultConfig().CustomizeSchema(schema); err != nil {
+		t.Fatalf("CustomizeSchema error: %v", err)
 	}
-	if !containsString(openapiSchema.Required, "file") {
+
+	if _, ok := schema.Properties["config_dir"]; ok {
+		t.Fatalf("expected config_dir to be removed from schema")
+	}
+	if len(schema.AnyOf) != 3 {
+		t.Fatalf("expected routing anyOf constraints, got %d", len(schema.AnyOf))
+	}
+	if schema.Not == nil {
+		t.Fatalf("expected root not routing constraint")
+	}
+
+	routesGroups := schema.Properties["routes"].Properties["groups"].AdditionalProperties
+	routeItem := routesGroups.Properties["routes"].Items
+	if _, ok := routeItem.Properties["group"]; ok {
+		t.Fatalf("expected routes[*].group to be removed")
+	}
+	openapiSchema := routeItem.Properties["openapi"]
+	if _, ok := openapiSchema.Properties["resolved_file"]; ok {
+		t.Fatalf("expected openapi.resolved_file to be removed")
+	}
+	if len(openapiSchema.Properties["mode"].Enum) != 2 {
+		t.Fatalf("expected openapi.mode enum")
+	}
+	if !containsRequired(openapiSchema.Required, "file") {
 		t.Fatalf("expected openapi.file to be required")
 	}
 	if openapiSchema.Properties["file"].MinLength == nil || *openapiSchema.Properties["file"].MinLength != 1 {
 		t.Fatalf("expected openapi.file minLength")
 	}
 
-	limit := schema.Properties["rate_limit"]
-	if limit.Properties["requests_per_second"].Minimum == nil || *limit.Properties["requests_per_second"].Minimum != 1 {
+	rateLimitSchema := routesGroups.Properties["rate_limit"]
+	if rateLimitSchema.Properties["requests_per_second"].Minimum == nil || *rateLimitSchema.Properties["requests_per_second"].Minimum != 1 {
 		t.Fatalf("expected rate_limit.requests_per_second minimum")
 	}
-	if limit.Properties["burst"].Minimum == nil || *limit.Properties["burst"].Minimum != 1 {
+	if rateLimitSchema.Properties["burst"].Minimum == nil || *rateLimitSchema.Properties["burst"].Minimum != 1 {
 		t.Fatalf("expected rate_limit.burst minimum")
+	}
+
+	portalMode := schema.Properties["portal"].Properties["mode"]
+	if len(portalMode.Enum) != 2 {
+		t.Fatalf("expected portal.mode enum")
+	}
+	configStore := schema.Properties["config_store"]
+	if len(configStore.Properties["source_of_truth"].Enum) != 2 {
+		t.Fatalf("expected config_store.source_of_truth enum")
+	}
+	if len(configStore.Properties["backend"].Enum) != 2 {
+		t.Fatalf("expected config_store.backend enum")
+	}
+
+	metadataSchema := routesGroups.Properties["metadata"]
+	if len(metadataSchema.Properties["visibility"].Enum) != 3 {
+		t.Fatalf("expected metadata.visibility enum")
+	}
+	if len(metadataSchema.Properties["status"].Enum) != 3 {
+		t.Fatalf("expected metadata.status enum")
 	}
 }
 
@@ -112,39 +170,59 @@ func TestModulePathAndRepoRoot(t *testing.T) {
 	}
 }
 
-func TestRemovePropertyAtPathAndWriteSchema(t *testing.T) {
-	schema := &jsonschema.Schema{
-		Properties: map[string]*jsonschema.Schema{
-			"routes": {
-				Properties: map[string]*jsonschema.Schema{
-					"groups": {
-						AdditionalProperties: &jsonschema.Schema{
-							Properties: map[string]*jsonschema.Schema{
-								"routes": {
-									Items: &jsonschema.Schema{
-										Properties: map[string]*jsonschema.Schema{
-											"group": {},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	removePropertyAtPath(schema, []string{"routes", "groups", "*", "routes", "*", "group"})
-	target := schema.Properties["routes"].Properties["groups"].AdditionalProperties.Properties["routes"].Items
-	if _, ok := target.Properties["group"]; ok {
-		t.Fatalf("expected nested property to be removed")
-	}
-
+func TestWriteSchema(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "config", "schema.json")
-	if err := writeSchema(out, schema); err != nil {
+	if err := writeSchema(out, &jsonschema.Schema{Title: "Test"}); err != nil {
 		t.Fatalf("writeSchema error: %v", err)
 	}
 	if _, err := os.Stat(out); err != nil {
 		t.Fatalf("expected schema output file: %v", err)
 	}
+}
+
+func TestWriteSchemaProducesStableJSONShape(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "config", "schema.json")
+	schema := &jsonschema.Schema{
+		Title:       "Gateway Schema",
+		Description: "Schema for gateway config.",
+		Properties: map[string]*jsonschema.Schema{
+			"routes": {Type: "object"},
+			"portal": {
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"mode": {Type: "string"},
+				},
+			},
+		},
+	}
+
+	if err := writeSchema(out, schema); err != nil {
+		t.Fatalf("writeSchema error: %v", err)
+	}
+
+	payload, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("read schema output: %v", err)
+	}
+	content := string(payload)
+	for _, want := range []string{
+		`"title": "Gateway Schema"`,
+		`"description": "Schema for gateway config."`,
+		`"routes": {`,
+		`"portal": {`,
+		`"mode": {`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected schema output to contain %q, got %q", want, content)
+		}
+	}
+}
+
+func containsRequired(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

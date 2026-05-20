@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,13 +28,34 @@ type rawRoutingFile struct {
 	Routing Routing `yaml:"routes"`
 }
 
+const (
+	MetadataVisibilityPublic   = "public"
+	MetadataVisibilityPartner  = "partner"
+	MetadataVisibilityInternal = "internal"
+
+	MetadataStatusActive       = "active"
+	MetadataStatusDeprecated   = "deprecated"
+	MetadataStatusExperimental = "experimental"
+)
+
+type ResourceMetadata struct {
+	OwnerTeam      string `yaml:"owner_team" mapstructure:"owner_team"`
+	Domain         string `yaml:"domain" mapstructure:"domain"`
+	Visibility     string `yaml:"visibility" mapstructure:"visibility"`
+	Status         string `yaml:"status" mapstructure:"status"`
+	DocsURL        string `yaml:"docs_url" mapstructure:"docs_url"`
+	RunbookURL     string `yaml:"runbook_url" mapstructure:"runbook_url"`
+	SupportChannel string `yaml:"support_channel" mapstructure:"support_channel"`
+}
+
 type Group struct {
-	Prefix        string         `yaml:"prefix" mapstructure:"prefix"`
-	Middlewares   []string       `yaml:"middlewares" mapstructure:"middlewares"`
-	RateLimit     *RateLimit     `yaml:"rate_limit" mapstructure:"rate_limit"`
-	AuthEndpoints *AuthEndpoints `yaml:"auth_endpoints" mapstructure:"auth_endpoints"`
-	Routes        []Route        `yaml:"routes" mapstructure:"routes"`
-	WebSockets    []WebSocket    `yaml:"websockets" mapstructure:"websockets"`
+	Prefix        string           `yaml:"prefix" mapstructure:"prefix"`
+	Metadata      ResourceMetadata `yaml:"metadata" mapstructure:"metadata"`
+	Middlewares   []string         `yaml:"middlewares" mapstructure:"middlewares"`
+	RateLimit     *RateLimit       `yaml:"rate_limit" mapstructure:"rate_limit"`
+	AuthEndpoints *AuthEndpoints   `yaml:"auth_endpoints" mapstructure:"auth_endpoints"`
+	Routes        []Route          `yaml:"routes" mapstructure:"routes"`
+	WebSockets    []WebSocket      `yaml:"websockets" mapstructure:"websockets"`
 }
 
 type AuthEndpoints struct {
@@ -94,45 +115,47 @@ func (c OAuth2Config) ToAuthConfig() auth.OAuth2Config {
 }
 
 type Route struct {
-	PathPrefix         string     `yaml:"path_prefix" mapstructure:"path_prefix"`
-	TargetURL          string     `yaml:"target_url" mapstructure:"target_url"`
-	StripPrefix        string     `yaml:"strip_prefix" mapstructure:"strip_prefix"`
-	OpenAPI            *OpenAPI   `yaml:"openapi" mapstructure:"openapi"`
-	Middlewares        []string   `yaml:"middlewares" mapstructure:"middlewares"`
-	DisableMiddlewares []string   `yaml:"disable_middlewares" mapstructure:"disable_middlewares"`
-	RateLimit          *RateLimit `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Endpoints          []Endpoint `yaml:"endpoints" mapstructure:"endpoints"`
-	Group              string     `yaml:"-"`
+	PathPrefix         string           `yaml:"path_prefix" mapstructure:"path_prefix"`
+	TargetURL          string           `yaml:"target_url" mapstructure:"target_url"`
+	StripPrefix        string           `yaml:"strip_prefix" mapstructure:"strip_prefix"`
+	OpenAPI            *OpenAPI         `yaml:"openapi" mapstructure:"openapi"`
+	Metadata           ResourceMetadata `yaml:"metadata" mapstructure:"metadata"`
+	Middlewares        []string         `yaml:"middlewares" mapstructure:"middlewares"`
+	DisableMiddlewares []string         `yaml:"disable_middlewares" mapstructure:"disable_middlewares"`
+	RateLimit          *RateLimit       `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Endpoints          []Endpoint       `yaml:"endpoints" mapstructure:"endpoints"`
+	Group              string           `yaml:"-"`
 }
 
 type WebSocket struct {
-	Path               string     `yaml:"path"`
-	TargetURL          string     `yaml:"target_url"`
-	StripPrefix        string     `yaml:"strip_prefix"`
-	Scopes             []string   `yaml:"scopes"`
-	Middlewares        []string   `yaml:"middlewares"`
-	DisableMiddlewares []string   `yaml:"disable_middlewares"`
-	RateLimit          *RateLimit `yaml:"rate_limit"`
-	Group              string     `yaml:"-"`
+	Path               string           `yaml:"path"`
+	TargetURL          string           `yaml:"target_url"`
+	StripPrefix        string           `yaml:"strip_prefix"`
+	Metadata           ResourceMetadata `yaml:"metadata" mapstructure:"metadata"`
+	Scopes             []string         `yaml:"scopes"`
+	Middlewares        []string         `yaml:"middlewares"`
+	DisableMiddlewares []string         `yaml:"disable_middlewares"`
+	RateLimit          *RateLimit       `yaml:"rate_limit"`
+	Group              string           `yaml:"-"`
 }
 
 type Endpoint struct {
-	Path               string             `yaml:"path"`
-	Middlewares        []string           `yaml:"middlewares"`
-	DisableMiddlewares []string           `yaml:"disable_middlewares"`
-	Methods            map[string]*Method `yaml:"methods"`
+	Path               string             `yaml:"path" mapstructure:"path"`
+	Middlewares        []string           `yaml:"middlewares" mapstructure:"middlewares"`
+	DisableMiddlewares []string           `yaml:"disable_middlewares" mapstructure:"disable_middlewares"`
+	Methods            map[string]*Method `yaml:"methods" mapstructure:"methods"`
 }
 
 type Method struct {
-	Scopes             []string   `yaml:"scopes"`
-	Middlewares        []string   `yaml:"middlewares"`
-	DisableMiddlewares []string   `yaml:"disable_middlewares"`
-	RateLimit          *RateLimit `yaml:"rate_limit"`
+	Scopes             []string   `yaml:"scopes" mapstructure:"scopes"`
+	Middlewares        []string   `yaml:"middlewares" mapstructure:"middlewares"`
+	DisableMiddlewares []string   `yaml:"disable_middlewares" mapstructure:"disable_middlewares"`
+	RateLimit          *RateLimit `yaml:"rate_limit" mapstructure:"rate_limit"`
 }
 
 type RateLimit struct {
-	RequestsPerSecond int `yaml:"requests_per_second"`
-	Burst             int `yaml:"burst"`
+	RequestsPerSecond int `yaml:"requests_per_second" mapstructure:"requests_per_second"`
+	Burst             int `yaml:"burst" mapstructure:"burst"`
 }
 
 type OpenAPI struct {
@@ -236,6 +259,59 @@ func validateMiddlewares(middlewares []string, path string, supportedMiddlewares
 	return nil
 }
 
+func validateResourceMetadata(metadata ResourceMetadata, path string) (ResourceMetadata, error) {
+	normalized := ResourceMetadata{
+		OwnerTeam:      strings.TrimSpace(metadata.OwnerTeam),
+		Domain:         strings.TrimSpace(metadata.Domain),
+		Visibility:     strings.ToLower(strings.TrimSpace(metadata.Visibility)),
+		Status:         strings.ToLower(strings.TrimSpace(metadata.Status)),
+		DocsURL:        strings.TrimSpace(metadata.DocsURL),
+		RunbookURL:     strings.TrimSpace(metadata.RunbookURL),
+		SupportChannel: strings.TrimSpace(metadata.SupportChannel),
+	}
+
+	if normalized.Visibility != "" {
+		switch normalized.Visibility {
+		case MetadataVisibilityPublic, MetadataVisibilityPartner, MetadataVisibilityInternal:
+		default:
+			return ResourceMetadata{}, fmt.Errorf("%s.metadata.visibility must be %q, %q, or %q", path, MetadataVisibilityPublic, MetadataVisibilityPartner, MetadataVisibilityInternal)
+		}
+	}
+
+	if normalized.Status != "" {
+		switch normalized.Status {
+		case MetadataStatusActive, MetadataStatusDeprecated, MetadataStatusExperimental:
+		default:
+			return ResourceMetadata{}, fmt.Errorf("%s.metadata.status must be %q, %q, or %q", path, MetadataStatusActive, MetadataStatusDeprecated, MetadataStatusExperimental)
+		}
+	}
+
+	if normalized.DocsURL != "" {
+		if err := validateAbsoluteURL(normalized.DocsURL); err != nil {
+			return ResourceMetadata{}, fmt.Errorf("%s.metadata.docs_url must be a valid absolute URL: %w", path, err)
+		}
+	}
+
+	if normalized.RunbookURL != "" {
+		if err := validateAbsoluteURL(normalized.RunbookURL); err != nil {
+			return ResourceMetadata{}, fmt.Errorf("%s.metadata.runbook_url must be a valid absolute URL: %w", path, err)
+		}
+	}
+
+	return normalized, nil
+}
+
+func validateAbsoluteURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("missing scheme or host")
+	}
+	return nil
+}
+
 func validateOpenAPI(openapiCfg *OpenAPI, path string) (*OpenAPI, error) {
 	if openapiCfg == nil {
 		return nil, nil
@@ -261,7 +337,12 @@ func validateOpenAPI(openapiCfg *OpenAPI, path string) (*OpenAPI, error) {
 	}, nil
 }
 
-func validateWebSocket(ws WebSocket, groupName string, wsIndex int, seenPaths map[string]struct{}, supportedMiddlewares map[string]struct{}) (WebSocket, error) {
+func validateWebSocket(ws WebSocket, groupName, groupPrefix string, wsIndex int, seenPaths map[string]struct{}, supportedMiddlewares map[string]struct{}) (WebSocket, error) {
+	metadata, err := validateResourceMetadata(ws.Metadata, fmt.Sprintf("groups.%s.websockets[%d]", groupName, wsIndex))
+	if err != nil {
+		return WebSocket{}, err
+	}
+
 	path := strings.TrimSpace(ws.Path)
 	if path == "" {
 		return WebSocket{}, fmt.Errorf("groups.%s.websockets[%d].path is required", groupName, wsIndex)
@@ -272,10 +353,11 @@ func validateWebSocket(ws WebSocket, groupName string, wsIndex int, seenPaths ma
 	if path != "/" {
 		path = strings.TrimRight(path, "/")
 	}
-	if _, exists := seenPaths[path]; exists {
-		return WebSocket{}, fmt.Errorf("duplicate path: %s", path)
+	effectivePath := joinScopedPath(groupPrefix, path)
+	if _, exists := seenPaths[effectivePath]; exists {
+		return WebSocket{}, fmt.Errorf("duplicate path: %s", effectivePath)
 	}
-	seenPaths[path] = struct{}{}
+	seenPaths[effectivePath] = struct{}{}
 
 	targetURL := strings.TrimSpace(ws.TargetURL)
 	target, err := url.Parse(targetURL)
@@ -313,6 +395,7 @@ func validateWebSocket(ws WebSocket, groupName string, wsIndex int, seenPaths ma
 		Path:               path,
 		TargetURL:          targetURL,
 		StripPrefix:        stripPrefix,
+		Metadata:           metadata,
 		Scopes:             ws.Scopes,
 		Middlewares:        ws.Middlewares,
 		DisableMiddlewares: ws.DisableMiddlewares,
@@ -321,7 +404,12 @@ func validateWebSocket(ws WebSocket, groupName string, wsIndex int, seenPaths ma
 	}, nil
 }
 
-func validateRoute(route Route, groupName string, routeIndex int, seenPaths map[string]struct{}, supportedMiddlewares map[string]struct{}) (Route, error) {
+func validateRoute(route Route, groupName, groupPrefix string, routeIndex int, seenPaths map[string]struct{}, supportedMiddlewares map[string]struct{}) (Route, error) {
+	metadata, err := validateResourceMetadata(route.Metadata, fmt.Sprintf("groups.%s.routes[%d]", groupName, routeIndex))
+	if err != nil {
+		return Route{}, err
+	}
+
 	pathPrefix := strings.TrimSpace(route.PathPrefix)
 	if pathPrefix == "" {
 		return Route{}, fmt.Errorf("groups.%s.routes[%d].path_prefix is required", groupName, routeIndex)
@@ -332,10 +420,11 @@ func validateRoute(route Route, groupName string, routeIndex int, seenPaths map[
 	if pathPrefix != "/" {
 		pathPrefix = strings.TrimRight(pathPrefix, "/")
 	}
-	if _, exists := seenPaths[pathPrefix]; exists {
-		return Route{}, fmt.Errorf("duplicate path_prefix: %s", pathPrefix)
+	effectivePath := joinScopedPath(groupPrefix, pathPrefix)
+	if _, exists := seenPaths[effectivePath]; exists {
+		return Route{}, fmt.Errorf("duplicate path_prefix: %s", effectivePath)
 	}
-	seenPaths[pathPrefix] = struct{}{}
+	seenPaths[effectivePath] = struct{}{}
 
 	targetURL := strings.TrimSpace(route.TargetURL)
 	target, err := url.Parse(targetURL)
@@ -446,6 +535,7 @@ func validateRoute(route Route, groupName string, routeIndex int, seenPaths map[
 		TargetURL:          targetURL,
 		StripPrefix:        stripPrefix,
 		OpenAPI:            openapiCfg,
+		Metadata:           metadata,
 		Middlewares:        route.Middlewares,
 		DisableMiddlewares: route.DisableMiddlewares,
 		RateLimit:          route.RateLimit,
@@ -464,8 +554,9 @@ func validateAndNormalize(r Routing, supportedMiddlewares map[string]struct{}) (
 	seenPaths := make(map[string]struct{})
 
 	for groupName, group := range groups {
-		if groupName != "default" && groupName != "central" {
-			return Routing{}, fmt.Errorf("group name must be 'default' or 'central', got: %s", groupName)
+		metadata, err := validateResourceMetadata(group.Metadata, fmt.Sprintf("groups.%s", groupName))
+		if err != nil {
+			return Routing{}, err
 		}
 
 		prefix := strings.TrimSpace(group.Prefix)
@@ -512,7 +603,7 @@ func validateAndNormalize(r Routing, supportedMiddlewares map[string]struct{}) (
 
 		normalizedRoutes := make([]Route, 0, len(group.Routes))
 		for routeIndex, route := range group.Routes {
-			normalizedRoute, err := validateRoute(route, groupName, routeIndex, seenPaths, supportedMiddlewares)
+			normalizedRoute, err := validateRoute(route, groupName, prefix, routeIndex, seenPaths, supportedMiddlewares)
 			if err != nil {
 				return Routing{}, err
 			}
@@ -521,7 +612,7 @@ func validateAndNormalize(r Routing, supportedMiddlewares map[string]struct{}) (
 
 		normalizedWebSockets := make([]WebSocket, 0, len(group.WebSockets))
 		for wsIndex, ws := range group.WebSockets {
-			normalizedWS, err := validateWebSocket(ws, groupName, wsIndex, seenPaths, supportedMiddlewares)
+			normalizedWS, err := validateWebSocket(ws, groupName, prefix, wsIndex, seenPaths, supportedMiddlewares)
 			if err != nil {
 				return Routing{}, err
 			}
@@ -530,6 +621,7 @@ func validateAndNormalize(r Routing, supportedMiddlewares map[string]struct{}) (
 
 		normalized.Groups[groupName] = Group{
 			Prefix:        prefix,
+			Metadata:      metadata,
 			Middlewares:   group.Middlewares,
 			RateLimit:     group.RateLimit,
 			AuthEndpoints: group.AuthEndpoints,
@@ -539,4 +631,32 @@ func validateAndNormalize(r Routing, supportedMiddlewares map[string]struct{}) (
 	}
 
 	return normalized, nil
+}
+
+func joinScopedPath(groupPrefix, localPath string) string {
+	group := strings.TrimSpace(groupPrefix)
+	if group == "" {
+		group = "/"
+	}
+	if !strings.HasPrefix(group, "/") {
+		group = "/" + group
+	}
+	if group != "/" {
+		group = strings.TrimRight(group, "/")
+	}
+
+	local := strings.TrimSpace(localPath)
+	if local == "" || local == "/" {
+		return group
+	}
+	if !strings.HasPrefix(local, "/") {
+		local = "/" + local
+	}
+	if local != "/" {
+		local = strings.TrimRight(local, "/")
+	}
+	if group == "/" {
+		return local
+	}
+	return group + local
 }
