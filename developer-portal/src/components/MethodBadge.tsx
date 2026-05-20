@@ -1,27 +1,32 @@
 interface Props {
-  method: string;
-  onClick: () => void;
-  expanded?: boolean;
+  method: string
+  expanded?: boolean
+  authRequired?: boolean
+  primaryScope?: string
 }
 
-const methodColors: Record<string, string> = {
-  GET: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-  POST: 'bg-green-100 text-green-700 hover:bg-green-200',
-  PUT: 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-  DELETE: 'bg-red-100 text-red-700 hover:bg-red-200',
-  PATCH: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+const CLASS: Record<string, string> = {
+  GET: 'method-get', POST: 'method-post', PUT: 'method-put',
+  PATCH: 'method-patch', DELETE: 'method-delete',
 }
 
-export default function MethodBadge({ method, onClick, expanded = false }: Props) {
-  const colorClass = methodColors[method] || 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-  const ringClass = expanded ? 'ring-2 ring-offset-1 ring-blue-300' : ''
-  
+export default function MethodBadge({ method, expanded = false, authRequired = false, primaryScope = '' }: Props) {
+  const cls = CLASS[method.toUpperCase()] ?? 'method-default'
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded font-semibold text-xs transition-all transform hover:scale-105 ${colorClass} ${ringClass}`}
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        outline: expanded ? '2px solid var(--color-accent)' : 'none',
+        outlineOffset: 2, borderRadius: 4, padding: '0 2px',
+      }}
     >
-      {method}
-    </button>
+      <span className={`method ${cls}`}>{method.toUpperCase()}</span>
+      {authRequired && <span style={{ fontSize: 11, opacity: 0.7 }} title="Auth required">🔒</span>}
+      {primaryScope && (
+        <span className="badge badge-gray" style={{ fontSize: 10, padding: '1px 5px' }}>
+          {primaryScope}
+        </span>
+      )}
+    </span>
   )
 }

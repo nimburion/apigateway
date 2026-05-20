@@ -1,309 +1,315 @@
-import { useState } from 'react'
-import { GroupData, OpenAPIOperation } from '../types'
+import type { KeyboardEvent } from 'react'
+import { GroupData, MethodInfo, PortalSurfaceMetricSummary, RouteInfo, SelectedSurface } from '../types'
 import MethodBadge from './MethodBadge'
+import StatusBadge, { StatusBadgeStatus } from './StatusBadge'
+import { t } from '../i18n'
+import { buildRouteMetricKey } from '../metrics'
+import { runtimeSignals } from '../runtimeSignals'
+import { getGroupDisplayName } from '../groupDisplay'
 
 interface Props {
-  group: GroupData;
+  group: GroupData
+  sortMode?: 'default' | 'owner' | 'risk' | 'surface' | 'traffic' | 'errorRate'
+  runtimeMetricsAvailable?: boolean
+  groupMetric?: PortalSurfaceMetricSummary | null
+  routeMetrics?: Record<string, PortalSurfaceMetricSummary>
+  selectedSurfaceId?: string
+  onSelectSurface: (surface: SelectedSurface) => void
+  searchTerm?: string
 }
 
-export default function RoutesList({ group }: Props) {
-  const [expandedMethods, setExpandedMethods] = useState<Record<string, boolean>>({})
-  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({})
+const METHOD_ORDER = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+function sortMethods(ms: MethodInfo[]) {
+  return [...ms].sort((a, b) => {
+    const ai = METHOD_ORDER.indexOf(a.method.toUpperCase())
+    const bi = METHOD_ORDER.indexOf(b.method.toUpperCase())
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.method.localeCompare(b.method)
+  })
+}
 
-  const sortMethods = (methods: { method: string; scopes: string[] }[]) => {
-    const methodOrder = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+function fmt(n: number) { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n) }
+function fmtMs(v: number) {
+  if (v <= 0) return '—'
+  if (v >= 1000) return `${(v / 1000).toFixed(2)}s`
+  return `${v.toFixed(0)}ms`
+}
 
-    const getIndex = (method: string) => {
-      const normalized = method.toUpperCase()
-      const idx = methodOrder.indexOf(normalized)
-      return idx !== -1 ? idx : methodOrder.length
-    }
+function highlight(text: string, term: string) {
+  if (!term) return text
+  const idx = text.toLowerCase().indexOf(term.toLowerCase())
+  if (idx === -1) return text
+  return <>{text.slice(0, idx)}<mark style={{ background: '#fef08a', borderRadius: 2, padding: '0 1px' }}>{text.slice(idx, idx + term.length)}</mark>{text.slice(idx + term.length)}</>
+}
 
-    return [...methods].sort((a, b) => {
-      const orderDiff = getIndex(a.method) - getIndex(b.method)
-      if (orderDiff !== 0) {
-        return orderDiff
-      }
-      return a.method.localeCompare(b.method)
-    })
+function latClass(ms: number) { return ms >= 1000 ? 'text-danger' : ms >= 500 ? 'text-warning' : 'metric-neutral' }
+function errClass(rate: number) { return rate >= 0.05 ? 'text-danger' : rate >= 0.01 ? 'text-warning' : 'text-success' }
+
+function resolveStatus(status?: string, deprecated?: boolean): StatusBadgeStatus {
+  if (deprecated || status === 'deprecated') return 'deprecated'
+  if (status === 'experimental') return 'experimental'
+  if (status === 'disabled') return 'disabled'
+  return 'active'
+}
+
+function visibilityBadge(v?: string) {
+  if (v === 'public') return <span className="badge badge-green" style={{ fontSize: 10 }}>{v}</span>
+  if (v === 'partner') return <span className="badge badge-amber" style={{ fontSize: 10 }}>{v}</span>
+  if (v === 'internal') return <span className="badge badge-gray" style={{ fontSize: 10 }}>{v}</span>
+  return null
+}
+
+function contextBadge(route: RouteInfo) {
+  if (route.surface_context === 'management') {
+    return <span className="badge badge-sky" style={{ fontSize: 10 }}>{t('badge.management')}</span>
+  }
+  if (route.runtime_only) {
+    return <span className="badge badge-amber" style={{ fontSize: 10 }}>{t('badge.runtimeOnly')}</span>
+  }
+  return null
+}
+
+export default function RoutesList({
+  group, sortMode = 'default', runtimeMetricsAvailable = false,
+  groupMetric = null, routeMetrics = {},
+  selectedSurfaceId, onSelectSurface, searchTerm = ''
+}: Props) {
+
+  function normPath(p: string) {
+    return p.replace(/\/:([A-Za-z0-9_]+)/g, '/{$1}').replace(/\/{2,}/g, '/')
   }
 
-  const normalizePath = (path: string) => {
-    if (!path) {
-      return ''
-    }
-    let normalized = path.replace(/\/:([A-Za-z0-9_]+)/g, '/{$1}')
-    normalized = normalized.replace(/\/{2,}/g, '/')
-    if (normalized.length > 1 && normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1)
-    }
-    return normalized
+  function joinPath(prefix: string, path: string) {
+    const parts = [prefix, path].map(s => s.trim()).filter(s => s && s !== '/').map(s => s.replace(/\/+$/, ''))
+    return parts.length === 0 ? '/' : normPath(parts.join('/'))
   }
 
-  const getOpenAPIOperation = (routePath: string, method: string, operations?: OpenAPIOperation[]) => {
-    if (!operations || operations.length === 0) {
-      return null
-    }
-
-    const normalizedMethod = method.toUpperCase()
-    const normalizedRoutePath = normalizePath(routePath)
-    return operations.find((op) => (
-      op.method.toUpperCase() === normalizedMethod && normalizePath(op.path) === normalizedRoutePath
-    )) || null
+  function getMetric(route: RouteInfo) {
+    return routeMetrics[buildRouteMetricKey(group.name, joinPath(group.prefix, route.path_prefix))]
   }
 
-  const toggleExpanded = (key: string) => {
-    setExpandedMethods((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }))
+  function routeTraffic(route: RouteInfo) { return getMetric(route)?.requests ?? 0 }
+  function routeErrRate(route: RouteInfo) {
+    const m = getMetric(route)
+    return m && m.requests > 0 ? (m.client_errors + m.server_errors) / m.requests : 0
+  }
+  function riskScore(r: RouteInfo) {
+    let s = 0
+    if (r.auth_required) s += 2
+    if (r.has_rate_limit) s += 1
+    if (r.deprecated || r.metadata.status === 'deprecated') s += 3
+    if (r.metadata.status === 'experimental') s += 2
+    if (r.has_openapi) s += 1
+    return s
   }
 
-  const togglePathExpanded = (key: string) => {
-    setExpandedPaths((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }))
+  function compareRoutes(a: RouteInfo, b: RouteInfo) {
+    if (sortMode === 'traffic') return routeTraffic(b) - routeTraffic(a) || a.path_prefix.localeCompare(b.path_prefix)
+    if (sortMode === 'errorRate') {
+      const d = routeErrRate(b) - routeErrRate(a)
+      return d !== 0 ? d : routeTraffic(b) - routeTraffic(a)
+    }
+    if (sortMode === 'risk') return riskScore(b) - riskScore(a) || a.path_prefix.localeCompare(b.path_prefix)
+    if (sortMode === 'owner') return (a.metadata.owner_team || '').localeCompare(b.metadata.owner_team || '') || a.path_prefix.localeCompare(b.path_prefix)
+    return a.path_prefix.localeCompare(b.path_prefix)
   }
 
-  const groupKeyForRoute = (routePath: string) => {
-    const normalized = normalizePath(routePath)
-    const paramIndex = normalized.indexOf('/{')
-    if (paramIndex > 0) {
-      return normalized.slice(0, paramIndex)
-    }
-    return normalized
-  }
-
-  const getEndpointSuffix = (routePath: string, basePath: string) => {
-    if (!routePath.startsWith(basePath)) {
-      return routePath
-    }
-    const suffix = routePath.slice(basePath.length)
-    if (!suffix) {
-      return '/'
-    }
-    return suffix.startsWith('/') ? suffix : `/${suffix}`
-  }
-
-  const groupedRoutes = group.routes.reduce<Record<string, typeof group.routes>>((acc, route) => {
-    const key = groupKeyForRoute(route.path_prefix)
-    if (!acc[key]) {
-      acc[key] = []
-    }
-    acc[key].push(route)
-    return acc
-  }, {})
-
-  const groupedRouteEntries = Object.entries(groupedRoutes).sort(([a], [b]) => a.localeCompare(b))
-
-  const openapiModeBadgeClass = (mode?: string) => {
-    const normalized = (mode || 'strict').toLowerCase()
-    if (normalized === 'warn-only' || normalized === 'warn_only' || normalized === 'warnonly') {
-      return 'bg-amber-100 text-amber-800'
-    }
-    return 'bg-emerald-100 text-emerald-800'
-  }
+  const groupSignals = runtimeSignals(groupMetric)
+  const wsPublic = group.websockets.filter(w => !w.auth_required).length
+  const wsProtected = group.websockets.filter(w => w.auth_required).length
 
   return (
-    <>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">{group.name}</h3>
-            <span className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">
-              {group.prefix}
-            </span>
+    <div className="card" style={{ marginBottom: 16, overflow: 'hidden' }}>
+      {/* Group header */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{getGroupDisplayName(group.name)}</span>
+            <span className="badge badge-outline" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{group.prefix || '/'}</span>
+            {group.auth_required && <span className="badge badge-red">Auth</span>}
+            {group.has_rate_limit && <span className="badge badge-amber">Group RL</span>}
+            {group.middlewares.length > 0 && <span className="badge badge-gray">MW: {group.middlewares.join(', ')}</span>}
+            {groupSignals.map(s => <span key={s.id} className={`badge ${s.className}`} title={s.label}>{s.label}</span>)}
           </div>
+          {(group.metadata.owner_team || group.metadata.domain) && (
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 3 }}>
+              {[group.metadata.owner_team, group.metadata.domain].filter(Boolean).join(' · ')}
+            </div>
+          )}
         </div>
-
-        {group.routes.length > 0 && (
-          <div className="p-6">
-            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-              HTTP Routes
-            </h4>
-            <div className="space-y-4">
-              {groupedRouteEntries.map(([basePath, routes]) => (
-                <div key={basePath} className="rounded-lg border border-gray-200 bg-gray-50/40 p-4">
-                  <button
-                    type="button"
-                    onClick={() => togglePathExpanded(basePath)}
-                    className="flex w-full flex-wrap items-center justify-between gap-2 text-left"
-                    aria-expanded={Boolean(expandedPaths[basePath])}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <code className="text-sm font-mono text-gray-800 bg-gray-100 px-3 py-1 rounded">
-                        {basePath}
-                      </code>
-                      <span className="text-xs text-gray-500">
-                        {routes.length} endpoint{routes.length > 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium text-blue-700">
-                      {expandedPaths[basePath] ? 'Hide endpoints' : 'Show endpoints'}
-                    </span>
-                  </button>
-                  {expandedPaths[basePath] && (
-                    <div className="mt-3 space-y-3">
-                      {routes.map((route, idx) => {
-                        const displayPath = getEndpointSuffix(normalizePath(route.path_prefix), basePath)
-
-                        return (
-                          <div
-                            key={`${route.path_prefix}-${idx}`}
-                            className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all bg-white"
-                          >
-                            <code className="text-sm font-mono text-gray-800 bg-gray-100 px-3 py-1 rounded">
-                              {displayPath}
-                            </code>
-                            <div className="mt-2 text-xs text-gray-500">
-                              Target: <span className="font-mono">{route.target_url}</span>
-                            </div>
-                            <div className="mt-4 space-y-2">
-                              {sortMethods(route.methods).map((m, midx) => {
-                                const key = `${route.path_prefix}::${m.method}`
-                                const expanded = Boolean(expandedMethods[key])
-                                const operation = getOpenAPIOperation(
-                                  route.path_prefix,
-                                  m.method,
-                                  route.openapi?.operations
-                                )
-
-                                return (
-                                  <div key={midx} className="rounded-md border border-gray-200 bg-white">
-                                    <div className="flex items-center justify-between gap-3 px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <MethodBadge
-                                          method={m.method}
-                                          onClick={() => toggleExpanded(key)}
-                                          expanded={expanded}
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleExpanded(key)}
-                                          className="text-xs font-medium text-blue-700 hover:text-blue-800"
-                                          aria-expanded={expanded}
-                                        >
-                                          {expanded ? 'Hide details' : 'Show details'}
-                                        </button>
-                                      </div>
-                                      <div className="text-[11px] text-gray-500">
-                                        {m.scopes.length > 0 ? `${m.scopes.length} scope${m.scopes.length > 1 ? 's' : ''}` : 'No scopes'}
-                                      </div>
-                                    </div>
-                                    {expanded && (
-                                      <div className="border-t border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-700">
-                                        <div className="mt-2">
-                                          <span className="font-semibold text-gray-800">Scopes:</span>{' '}
-                                          {m.scopes.length > 0 ? (
-                                            <span className="font-mono">{m.scopes.join(', ')}</span>
-                                          ) : (
-                                            <span className="text-gray-500">none</span>
-                                          )}
-                                        </div>
-                                        {route.openapi ? (
-                                          <>
-                                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                                            <span className="rounded bg-blue-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                                              OpenAPI
-                                            </span>
-                                              <span className={`rounded px-2 py-0.5 font-mono text-[10px] ${openapiModeBadgeClass(route.openapi.mode)}`}>
-                                                {route.openapi.mode || 'strict'}
-                                              </span>
-                                              <span className="rounded bg-gray-200 px-2 py-0.5 font-mono text-[10px] text-gray-700">
-                                                {route.openapi.file || 'n/a'}
-                                              </span>
-                                            </div>
-                                            <div className="mt-2">
-                                              <span className="font-semibold text-gray-800">Path:</span>{' '}
-                                              <span className="font-mono">{normalizePath(route.path_prefix)}</span>
-                                            </div>
-                                            <div className="mt-2 grid gap-1">
-                                              <div>
-                                                <span className="font-semibold text-gray-800">Summary:</span>{' '}
-                                                {operation?.summary || '-'}
-                                              </div>
-                                              <div>
-                                                <span className="font-semibold text-gray-800">Operation ID:</span>{' '}
-                                                <span className="font-mono">{operation?.operation_id || '-'}</span>
-                                              </div>
-                                              <div>
-                                                <span className="font-semibold text-gray-800">Deprecated:</span>{' '}
-                                                {operation?.deprecated ? 'yes' : 'no'}
-                                              </div>
-                                              {!operation && (
-                                                <div className="text-gray-500">
-                                                  No OpenAPI operation matched this method and path.
-                                                </div>
-                                              )}
-                                            </div>
-                                            {route.openapi.error && (
-                                              <div className="mt-2 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">
-                                                {route.openapi.error}
-                                              </div>
-                                            )}
-                                          </>
-                                        ) : (
-                                          <div className="mt-2 text-gray-500">
-                                            OpenAPI not configured for this route.
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {group.websockets.length > 0 && (
-          <div className="p-6 border-t border-gray-200 bg-purple-50/30">
-            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-              WebSocket Routes
-            </h4>
-            <div className="space-y-3">
-              {group.websockets.map((ws, idx) => (
-                <div
-                  key={idx}
-                  className="border border-purple-200 rounded-lg p-4 bg-white"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <code className="text-sm font-mono text-gray-800 bg-gray-100 px-3 py-1 rounded">
-                      {ws.path}
-                    </code>
-                    <span className="px-2 py-1 bg-purple-600 text-white text-xs font-semibold rounded">
-                      WS
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {ws.scopes.map((scope, sidx) => (
-                      <span
-                        key={sidx}
-                        className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
-                      >
-                        {scope}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Target: <span className="font-mono">{ws.target_url}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Group-level metrics */}
+        {runtimeMetricsAvailable && groupMetric && (
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, flexShrink: 0 }}>
+            <div><span className="text-muted">Req </span><span className="inline-metric-value">{fmt(groupMetric.requests)}</span></div>
+            <div><span className="text-muted">Avg </span><span className={`inline-metric-value ${latClass(groupMetric.average_latency_ms)}`}>{fmtMs(groupMetric.average_latency_ms)}</span></div>
           </div>
         )}
       </div>
 
-    </>
+      {/* HTTP routes */}
+      {group.routes.length > 0 && (
+        <>
+          <div style={{ padding: '6px 16px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-faint)' }}>
+              HTTP — {group.routes.length} {group.routes.length === 1 ? 'route' : 'routes'}
+            </span>
+          </div>
+          <table className="data-table" style={{ borderRadius: 0, border: 'none' }}>
+            <thead>
+              <tr>
+                <th style={{ width: 90 }}>Method</th>
+                <th>Path</th>
+                <th style={{ width: 120 }}>Owner</th>
+                <th style={{ width: 120 }}>Security</th>
+                <th style={{ width: 80 }}>Status</th>
+                {runtimeMetricsAvailable && <th style={{ width: 80, textAlign: 'right' }}>Req</th>}
+                {runtimeMetricsAvailable && <th style={{ width: 80, textAlign: 'right' }}>Avg</th>}
+                {runtimeMetricsAvailable && <th style={{ width: 72, textAlign: 'right' }}>Err%</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {[...group.routes].sort(compareRoutes).flatMap((route) =>
+                sortMethods(route.methods).map((method) => {
+                  const key = `${route.path_prefix}::${method.method}`
+                  const isSelected = selectedSurfaceId === key
+                  const metric = getMetric(route)
+                  const routeRequests = metric?.requests ?? 0
+                  const signals = runtimeSignals(metric)
+                  const errRate = metric && metric.requests > 0 ? (metric.client_errors + metric.server_errors) / metric.requests : 0
+
+                  return (
+                    <tr
+                      key={key}
+                      className={isSelected ? 'selected' : undefined}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => onSelectSurface({
+                        kind: 'route', id: key,
+                        group_name: group.name, group_prefix: group.prefix,
+                        group_middlewares: group.middlewares, route, method
+                      })}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${method.method} ${normPath(route.path_prefix)} - open details`}
+                      onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onSelectSurface({
+                            kind: 'route', id: key,
+                            group_name: group.name, group_prefix: group.prefix,
+                            group_middlewares: group.middlewares, route, method
+                          })
+                        }
+                      }}
+                    >
+                      <td>
+                        <MethodBadge
+                          method={method.method}
+                          expanded={isSelected}
+                          authRequired={method.auth_required}
+                          primaryScope={method.scopes[0] ?? ''}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ minWidth: 0 }}>
+                          <code className="path-text" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320, fontSize: 13, lineHeight: 1.45 }}>
+                            {highlight(normPath(route.path_prefix), searchTerm)}
+                          </code>
+                          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                            {contextBadge(route)}
+                            {group.has_rate_limit && !method.has_rate_limit && <span className="badge badge-amber" style={{ fontSize: 10 }}>Inherited RL</span>}
+                            {!group.has_rate_limit && method.has_rate_limit && <span className="badge badge-amber" style={{ fontSize: 10 }}>Method RL</span>}
+                            {group.has_rate_limit && method.has_rate_limit && <span className="badge badge-blue" style={{ fontSize: 10 }}>Method override</span>}
+                            {route.has_openapi && <span className="badge badge-blue" style={{ fontSize: 10 }}>{t('badge.openapi')}</span>}
+                            {signals.map(s => <span key={s.id} className={`badge ${s.className}`} style={{ fontSize: 10 }} title={s.label}>{s.label}</span>)}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: 12 }}>
+                          <span className="text-muted">{route.metadata.owner_team || '—'}</span>
+                          {route.metadata.domain && <span className="text-faint"> · {route.metadata.domain}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {method.auth_required ? <span className="badge badge-red" style={{ fontSize: 10 }}>Auth</span> : null}
+                          {visibilityBadge(route.metadata.visibility)}
+                        </div>
+                      </td>
+                      <td>
+                        <StatusBadge status={resolveStatus(route.metadata.status, route.deprecated)} />
+                      </td>
+                      {runtimeMetricsAvailable && <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 12, whiteSpace: 'nowrap' }}>{fmt(routeRequests)}</td>}
+                      {runtimeMetricsAvailable && <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }} className={metric ? latClass(metric.average_latency_ms) : 'text-faint'}>{metric ? fmtMs(metric.average_latency_ms) : '—'}</td>}
+                      {runtimeMetricsAvailable && <td style={{ textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }} className={metric && metric.requests > 0 ? errClass(errRate) : 'text-faint'}>{metric && metric.requests > 0 ? `${(errRate * 100).toFixed(1)}%` : '—'}</td>}
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* WebSocket routes */}
+      {group.websockets.length > 0 && (
+        <>
+          <div style={{ padding: '6px 16px', background: 'var(--color-bg)', borderTop: group.routes.length > 0 ? '1px solid var(--color-border)' : undefined, borderBottom: '1px solid var(--color-border)' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-faint)' }}>
+              WebSocket — {group.websockets.length} · {wsPublic} public · {wsProtected} protected
+            </span>
+          </div>
+          <table className="data-table" style={{ borderRadius: 0, border: 'none' }}>
+            <thead>
+              <tr>
+                <th style={{ width: 50 }}>Type</th>
+                <th>Path</th>
+                <th style={{ width: 120 }}>Owner</th>
+                <th style={{ width: 80 }}>Security</th>
+                <th style={{ width: 80 }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...group.websockets].sort((a, b) => a.path.localeCompare(b.path)).map((ws, idx) => {
+                const key = `ws::${ws.path}::${idx}`
+                const isSelected = selectedSurfaceId === key
+                return (
+                  <tr
+                    key={key}
+                    className={isSelected ? 'selected' : undefined}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => onSelectSurface({
+                      kind: 'websocket', id: key,
+                      group_name: group.name, group_prefix: group.prefix,
+                      group_middlewares: group.middlewares, websocket: ws
+                    })}
+                  >
+                    <td><span className="badge badge-gray" style={{ fontSize: 10 }}>WS</span></td>
+                    <td>
+                      <code className="path-text" style={{ fontSize: 12 }}>{highlight(normPath(ws.path), searchTerm)}</code>
+                      {!group.has_rate_limit && ws.has_rate_limit && <span className="badge badge-amber" style={{ fontSize: 10, marginLeft: 8 }}>WS RL</span>}
+                    </td>
+                    <td><span className="text-muted" style={{ fontSize: 12 }}>{ws.metadata.owner_team || '—'}</span></td>
+                    <td>
+                      <div style={{ display: 'grid', gap: 4 }}>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {ws.auth_required ? <span className="badge badge-red" style={{ fontSize: 10 }}>Auth</span> : <span className="badge badge-green" style={{ fontSize: 10 }}>Public</span>}
+                          {visibilityBadge(ws.metadata.visibility)}
+                        </div>
+                        {ws.scopes.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {ws.scopes.map(s => <span key={s} className="badge badge-purple" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>{s}</span>)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td><StatusBadge status={resolveStatus(ws.metadata.status, ws.deprecated)} /></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
   )
 }

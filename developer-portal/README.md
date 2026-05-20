@@ -22,7 +22,7 @@ npm install
 npm run dev
 ```
 
-L'applicazione sarà disponibile su `http://localhost:5173` e farà proxy delle chiamate API verso `http://localhost:8080`.
+L'applicazione sarà disponibile su `http://localhost:5173` e farà proxy delle chiamate API e di `/metrics` verso il management server del gateway.
 
 ## 🏗️ Build
 
@@ -34,7 +34,7 @@ I file di produzione saranno generati nella cartella `dist/`.
 
 ## 🔧 Configurazione
 
-Il proxy per le API è configurato in `vite.config.ts`. Modifica il `target` se il tuo API Gateway è su un'altra porta:
+Il proxy di sviluppo è configurato in `vite.config.ts`. Per cambiare target puoi usare `VITE_API_PROXY_TARGET` oppure modificare direttamente il file:
 
 ```typescript
 server: {
@@ -42,9 +42,25 @@ server: {
     '/api': {
       target: 'http://localhost:8080',
       changeOrigin: true
+    },
+    '/metrics': {
+      target: 'http://localhost:8080',
+      changeOrigin: true
     }
   }
 }
+```
+
+Se il portal deve leggere `/metrics` da un host differente rispetto alla UI, puoi anche impostare:
+
+```bash
+VITE_METRICS_URL=https://gateway-mgmt.example.com/metrics
+```
+
+oppure:
+
+```bash
+VITE_MANAGEMENT_BASE_URL=https://gateway-mgmt.example.com
 ```
 
 ## 📁 Struttura

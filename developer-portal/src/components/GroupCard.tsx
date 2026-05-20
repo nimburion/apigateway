@@ -1,43 +1,59 @@
-import { GroupInfo } from '../types'
+import { GroupInfo, PortalSurfaceMetricSummary } from '../types'
+import { t } from '../i18n'
+import { runtimeSignals } from '../runtimeSignals'
+import { getGroupDisplayName } from '../groupDisplay'
 
 interface Props {
   group: GroupInfo;
+  runtimeMetricsAvailable?: boolean;
+  groupMetric?: PortalSurfaceMetricSummary | null;
   isSelected: boolean;
   onClick: () => void;
 }
 
-export default function GroupCard({ group, isSelected, onClick }: Props) {
+export default function GroupCard({ group, runtimeMetricsAvailable = false, groupMetric = null, isSelected, onClick }: Props) {
+  const surfaceCount = group.route_count + group.websocket_count
+  const signals = runtimeSignals(groupMetric)
+  const topSignal = signals[0]
+  void runtimeMetricsAvailable
+
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`bg-white rounded-lg p-5 shadow-sm border-2 cursor-pointer transition-all hover:shadow-md ${
-        isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'
+      className={`w-full rounded-2xl px-3 py-2.5 text-left transition-all ${
+        isSelected
+          ? 'bg-indigo-500/20 text-white ring-1 ring-indigo-400/40'
+          : 'text-slate-300 hover:bg-white/[0.05] hover:text-slate-100'
       }`}
     >
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="font-semibold text-lg text-gray-900">{group.name}</h3>
-        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
-          {group.prefix}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex items-center gap-2">
+          {isSelected && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" />}
+          <span className="truncate text-xs font-semibold">{getGroupDisplayName(group.name)}</span>
+        </div>
+        <span className={`shrink-0 text-[10px] font-semibold ${isSelected ? 'text-indigo-200' : 'text-slate-500'}`}>
+          {surfaceCount}
         </span>
       </div>
-      
-      <div className="flex gap-2 mb-3">
-        {group.has_oauth2 && (
-          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
-            OAuth2
-          </span>
-        )}
-        {group.has_me_api && (
-          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
-            /me
-          </span>
-        )}
-      </div>
-      
-      <div className="text-sm text-gray-600 space-y-1">
-        <div>Routes: <span className="font-medium">{group.route_count}</span></div>
-        <div>WebSockets: <span className="font-medium">{group.websocket_count}</span></div>
-      </div>
-    </div>
+
+      {isSelected && (
+        <div className="mt-2 flex items-center gap-3 text-[11px] text-indigo-200">
+          <span>{group.route_count} {t('group.routes')}</span>
+          <span>{group.websocket_count} {t('group.websockets')}</span>
+          {topSignal && (
+            <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${topSignal.className}`}>
+              {topSignal.label}
+            </span>
+          )}
+        </div>
+      )}
+
+      {isSelected && (group.metadata.owner_team || group.metadata.domain) && (
+        <div className="mt-1 truncate text-[10px] text-indigo-300">
+          {[group.metadata.owner_team, group.metadata.domain].filter(Boolean).join(' · ')}
+        </div>
+      )}
+    </button>
   )
 }
