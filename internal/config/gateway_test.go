@@ -330,7 +330,7 @@ func TestNewDefaultConfigAndHelpers(t *testing.T) {
 	if cfg == nil {
 		t.Fatalf("expected default config")
 	}
-	if cfg.Routes.Groups != nil && len(cfg.Routes.Groups) != 0 {
+	if len(cfg.Routes.Groups) != 0 {
 		t.Fatalf("expected empty default routes")
 	}
 	if cfg.Portal.Mode != PortalModeReadOnly {

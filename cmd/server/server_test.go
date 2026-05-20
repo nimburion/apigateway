@@ -1545,8 +1545,8 @@ func TestRunServerPublicWebSocketAllowsAnonymousUpgradePath(t *testing.T) {
 
 		publicRouter := *servers.Public.Router()
 		serverConn, clientConn := net.Pipe()
-		defer clientConn.Close()
-		defer serverConn.Close()
+		defer func() { _ = clientConn.Close() }()
+		defer func() { _ = serverConn.Close() }()
 
 		rec := &wsHijackRecorder{
 			ResponseRecorder: httptest.NewRecorder(),
@@ -1631,8 +1631,8 @@ func TestRunServerProtectedWebSocketEnforcesAuthAndScopes(t *testing.T) {
 		}
 
 		serverConn, clientConn := net.Pipe()
-		defer clientConn.Close()
-		defer serverConn.Close()
+		defer func() { _ = clientConn.Close() }()
+		defer func() { _ = serverConn.Close() }()
 
 		req = newWebSocketRequest("/protected-ws")
 		req.Header.Set("Authorization", "Bearer valid-with-scope")

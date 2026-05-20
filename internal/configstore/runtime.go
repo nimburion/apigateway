@@ -142,7 +142,7 @@ func (r *Runtime) normalize(routes gatewaycfg.Routing) (gatewaycfg.Routing, erro
 }
 
 func writeLastGoodCache(path string, version Version) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	payload, err := json.MarshalIndent(version, "", "  ")
@@ -153,6 +153,7 @@ func writeLastGoodCache(path string, version Version) error {
 }
 
 func readLastGoodCache(path string) (Version, error) {
+	// #nosec G304 -- last-good cache path is an operator-configured local file.
 	payload, err := os.ReadFile(path)
 	if err != nil {
 		return Version{}, err

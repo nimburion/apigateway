@@ -54,7 +54,7 @@ func ProxyWebSocket(targetURL string, stripPrefix string) router.HandlerFunc {
 		if err != nil {
 			return err
 		}
-		defer clientConn.Close()
+		defer func() { _ = clientConn.Close() }()
 
 		// Connect to backend WebSocket
 		backendReq, err := http.NewRequestWithContext(req.Context(), "GET", backendURL, nil)
@@ -87,21 +87,21 @@ func ProxyWebSocket(targetURL string, stripPrefix string) router.HandlerFunc {
 		}
 		backendConn, err := dialer.DialContext(req.Context(), "tcp", target.Host)
 		if err != nil {
-			clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+			_, _ = clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n")) // #nosec G104 -- best-effort error response on hijacked connection.
 			return nil
 		}
-		defer backendConn.Close()
+		defer func() { _ = backendConn.Close() }()
 
 		// Send upgrade request to backend
 		if err := backendReq.Write(backendConn); err != nil {
-			clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+			_, _ = clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n")) // #nosec G104 -- best-effort error response on hijacked connection.
 			return nil
 		}
 
 		// Read backend upgrade response
 		backendResp, err := http.ReadResponse(clientBuf.Reader, backendReq)
 		if err != nil {
-			clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+			_, _ = clientConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n")) // #nosec G104 -- best-effort error response on hijacked connection.
 			return nil
 		}
 
@@ -120,12 +120,12 @@ func ProxyWebSocket(targetURL string, stripPrefix string) router.HandlerFunc {
 		defer cancel()
 
 		go func() {
-			io.Copy(backendConn, clientConn)
+			_, _ = io.Copy(backendConn, clientConn) // #nosec G104 -- tunnel copy ends when either side closes.
 			cancel()
 		}()
 
 		go func() {
-			io.Copy(clientConn, backendConn)
+			_, _ = io.Copy(clientConn, backendConn) // #nosec G104 -- tunnel copy ends when either side closes.
 			cancel()
 		}()
 

@@ -250,14 +250,17 @@ func (s *RedisMetricsHistoryStore) Append(ctx context.Context, snapshot PortalMe
 }
 
 func (s *RedisMetricsHistoryStore) Read() PortalMetricsHistoryResponse {
+	if s == nil || s.client == nil {
+		return PortalMetricsHistoryResponse{
+			Source:    "redis",
+			Snapshots: []PortalMetricsSnapshot{},
+		}
+	}
 	response := PortalMetricsHistoryResponse{
 		Source:             "redis",
 		SnapshotIntervalMs: s.snapshotInterval.Milliseconds(),
 		RetentionMs:        s.maxAge.Milliseconds(),
 		Snapshots:          []PortalMetricsSnapshot{},
-	}
-	if s == nil || s.client == nil {
-		return response
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.operationTimeout)

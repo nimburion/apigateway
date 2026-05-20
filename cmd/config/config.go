@@ -91,7 +91,7 @@ func NewGenerateCommand() *cobra.Command {
 					return fmt.Errorf("output file already exists: %s", outputPath)
 				}
 			}
-			if err := os.WriteFile(outputPath, payload, 0o644); err != nil {
+			if err := os.WriteFile(outputPath, payload, 0o600); err != nil {
 				return fmt.Errorf("write generated config: %w", err)
 			}
 			fmt.Printf("config written to %s\n", outputPath)
@@ -353,6 +353,7 @@ func loadExplicitSettings(cfgPath, envPrefix string) (map[string]any, error) {
 
 func discoverSecretsPath(cfgPath, envPrefix string) (string, error) {
 	if envPath := strings.TrimSpace(os.Getenv(resolveEnvPrefix(envPrefix) + "_SECRETS_FILE")); envPath != "" {
+		// #nosec G703 -- explicit operator-provided secrets path.
 		if _, err := os.Stat(envPath); err != nil {
 			return "", fmt.Errorf("access explicit secrets file %s: %w", envPath, err)
 		}

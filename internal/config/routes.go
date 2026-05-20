@@ -214,6 +214,7 @@ func LoadMultipleWithBaseDir(paths []string, baseDir string, middlewareRegistry 
 			return Routing{}, err
 		}
 
+		// #nosec G304 -- route files are explicitly configured and resolved relative to config base dir.
 		content, err := os.ReadFile(resolvedPath)
 		if err != nil {
 			return Routing{}, fmt.Errorf("read routes file %s: %w", path, err)

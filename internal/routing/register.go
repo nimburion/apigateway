@@ -225,7 +225,7 @@ func forwardHTTPRequest(w http.ResponseWriter, incoming *http.Request, target *u
 
 	var bodyBytes []byte
 	if incoming.Body != nil {
-		defer incoming.Body.Close()
+		defer func() { _ = incoming.Body.Close() }()
 		var err error
 		bodyBytes, err = io.ReadAll(incoming.Body)
 		if err != nil {
@@ -233,6 +233,7 @@ func forwardHTTPRequest(w http.ResponseWriter, incoming *http.Request, target *u
 		}
 	}
 
+	// #nosec G704 -- upstream URL comes from trusted gateway routing configuration.
 	outReq, err := http.NewRequestWithContext(incoming.Context(), incoming.Method, upstreamURL.String(), bytes.NewReader(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("build upstream request: %w", err)
@@ -258,11 +259,12 @@ func forwardHTTPRequest(w http.ResponseWriter, incoming *http.Request, target *u
 		},
 	}
 
+	// #nosec G704 -- request target is the configured upstream service for this route.
 	resp, err := client.Do(outReq)
 	if err != nil {
 		return fmt.Errorf("forward upstream request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	copyResponseHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)

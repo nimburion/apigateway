@@ -49,6 +49,7 @@ func repoRoot() (string, error) {
 }
 
 func modulePath(root string) string {
+	// #nosec G304 -- generator reads go.mod from the repository root it discovered.
 	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return ""
@@ -82,14 +83,14 @@ func schemaVersionHash(schema *jsonschema.Schema) string {
 }
 
 func writeSchema(path string, schema any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("create schema dir: %w", err)
 	}
 	payload, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal schema: %w", err)
 	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		return fmt.Errorf("write schema: %w", err)
 	}
 	return nil

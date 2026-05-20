@@ -105,8 +105,8 @@ func TestProxyWebSocketHijackingNotSupported(t *testing.T) {
 func TestProxyWebSocketBackendDialFailureWrites502(t *testing.T) {
 	handler := ProxyWebSocket("http://127.0.0.1:1", "/api")
 	serverConn, clientConn := net.Pipe()
-	defer clientConn.Close()
-	defer serverConn.Close()
+	defer func() { _ = clientConn.Close() }()
+	defer func() { _ = serverConn.Close() }()
 
 	hijackWriter := &wsHijackResponseWriter{
 		wsTestResponseWriter: wsTestResponseWriter{},

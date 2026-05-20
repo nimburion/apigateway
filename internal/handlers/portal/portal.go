@@ -771,7 +771,7 @@ func (h *PortalHandler) GetPortalHTML(c router.Context) error {
 		}
 		filePath = "index.html"
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Leggi il contenuto del file
 	content, err := io.ReadAll(file)
@@ -810,7 +810,9 @@ func (h *PortalHandler) GetPortalHTML(c router.Context) error {
 	}
 
 	c.Response().WriteHeader(http.StatusOK)
-	c.Response().Write(content)
+	if _, err := c.Response().Write(content); err != nil {
+		return err
+	}
 	return nil
 }
 

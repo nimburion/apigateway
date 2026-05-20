@@ -105,7 +105,7 @@ func (s *PostgresStore) ListVersions(ctx context.Context, limit int) ([]Version,
 	if err != nil {
 		return nil, fmt.Errorf("list config versions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var versions []Version
 	for rows.Next() {
 		version, err := scanVersion(rows)
@@ -130,7 +130,7 @@ func (s *PostgresStore) ListDrafts(ctx context.Context, limit int) ([]Version, e
 	if err != nil {
 		return nil, fmt.Errorf("list config drafts: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var versions []Version
 	for rows.Next() {
 		version, err := scanVersion(rows)
@@ -153,7 +153,7 @@ func (s *PostgresStore) SaveDraft(ctx context.Context, input DraftInput) (Versio
 	if err != nil {
 		return Version{}, fmt.Errorf("begin save draft transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	row := tx.QueryRowContext(ctx, `
 INSERT INTO gateway_config_versions (status, routes, checksum, created_by, message, base_version)
 VALUES ($1, $2::jsonb, $3, $4, $5, $6)
@@ -183,7 +183,7 @@ func (s *PostgresStore) UpdateDraft(ctx context.Context, version int64, input Dr
 	if err != nil {
 		return Version{}, fmt.Errorf("begin update draft transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	row := tx.QueryRowContext(ctx, `
 UPDATE gateway_config_versions
 SET status = $1, routes = $2::jsonb, checksum = $3, message = $4, base_version = $5,
@@ -214,7 +214,7 @@ func (s *PostgresStore) ValidateDraft(ctx context.Context, version int64, actor 
 	if err != nil {
 		return Version{}, fmt.Errorf("begin validate draft transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	row := tx.QueryRowContext(ctx, `
 UPDATE gateway_config_versions
 SET status = $1, validated_at = NOW()
@@ -244,7 +244,7 @@ func (s *PostgresStore) Publish(ctx context.Context, version int64, opts Publish
 	if err != nil {
 		return Version{}, fmt.Errorf("begin publish config transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('nimburion.gateway_config_publish'))`); err != nil {
 		return Version{}, fmt.Errorf("acquire config publish lock: %w", err)
 	}
@@ -329,7 +329,7 @@ func (s *PostgresStore) MarkFailed(ctx context.Context, version int64, failure s
 	if err != nil {
 		return fmt.Errorf("begin mark failed transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, `
 UPDATE gateway_config_versions
 SET status = $1, failed_at = NOW(), failure = $2
@@ -370,7 +370,7 @@ LIMIT $1
 	if err != nil {
 		return nil, fmt.Errorf("list config audit events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var events []AuditEvent
 	for rows.Next() {
 		var event AuditEvent

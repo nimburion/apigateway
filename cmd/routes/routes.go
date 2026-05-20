@@ -559,6 +559,7 @@ func hasLegacyServiceKey(cfgPath string) bool {
 	if trimmed == "" {
 		return false
 	}
+	// #nosec G304 -- CLI compares an explicit user-supplied config path.
 	data, err := os.ReadFile(trimmed)
 	if err != nil {
 		return false

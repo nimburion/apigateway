@@ -263,7 +263,7 @@ func TestGetMetricsHistory(t *testing.T) {
 		MaxSnapshots:     4,
 		MaxAge:           time.Hour,
 	})
-	store.Append(context.Background(), PortalMetricsSnapshot{
+	if err := store.Append(context.Background(), PortalMetricsSnapshot{
 		CapturedAt: time.Now().UTC().Format(time.RFC3339),
 		Data: PortalMetricsData{
 			Summary: PortalMetricsSummary{TotalRequests: 12},
@@ -272,7 +272,9 @@ func TestGetMetricsHistory(t *testing.T) {
 				{Path: "/healthz", Requests: 12, Methods: []string{"GET"}},
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("append metrics snapshot: %v", err)
+	}
 
 	h, err := NewPortalHandler(&routes, nil, nil, store)
 	if err != nil {
