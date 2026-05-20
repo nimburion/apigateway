@@ -43,6 +43,7 @@ build/Release
 # Dependency directories
 developer-portal/node_modules/
 developer-portal/dist/
+internal/handlers/portal/dist/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)

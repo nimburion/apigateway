@@ -40,6 +40,20 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: developer-portal/package-lock.json
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: developer-portal
+
+      - name: Generate portal assets
+        run: make portal
+
       - name: Run go vet
         run: go vet ./...
 
@@ -96,6 +110,20 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
           cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: developer-portal/package-lock.json
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: developer-portal
+
+      - name: Generate portal assets
+        run: make portal
 
       - name: Run targeted verification lane
         shell: bash
@@ -169,6 +197,20 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: developer-portal/package-lock.json
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: developer-portal
+
+      - name: Generate portal assets
+        run: make portal
+
       - name: Run full repository sweep
         run: go test ./...
 
@@ -215,6 +257,20 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
           cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: developer-portal/package-lock.json
+
+      - name: Install portal dependencies
+        run: npm ci
+        working-directory: developer-portal
+
+      - name: Generate portal assets
+        run: make portal
 
       - name: Collect coverage
         run: go test ./... -covermode=atomic -coverprofile=coverage.out
