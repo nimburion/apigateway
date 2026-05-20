@@ -110,7 +110,7 @@ jobs:
         run: make generate
 
       - name: Verify generated files are committed
-        run: git diff --exit-code
+        run: git diff --exit-code -- . ':!developer-portal/dist' ':!internal/handlers/portal/dist'
 
       - name: Build stamped binary
         run: make build VERSION=${{ github.ref_name }}

@@ -42,6 +42,7 @@ build/Release
 
 # Dependency directories
 developer-portal/node_modules/
+developer-portal/dist/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -157,4 +158,3 @@ go.work.sum
 
 # env file
 .env
-
