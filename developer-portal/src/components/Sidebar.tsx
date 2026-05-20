@@ -28,6 +28,7 @@ export default function Sidebar({
       {/* Logo */}
       <div className="sidebar-header">
         <img src={theme === 'dark' ? logoDark : logoLight} alt="Nimburion" style={{ height: 28, width: 'auto' }} />
+        <span className="preview-badge">Preview</span>
       </div>
 
       {/* Main nav */}

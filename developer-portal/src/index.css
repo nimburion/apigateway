@@ -81,6 +81,23 @@ code, pre, .font-mono { font-family: var(--font-mono); }
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--color-border);
   height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preview-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid var(--color-warning);
+  border-radius: 999px;
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .sidebar-section-label {
