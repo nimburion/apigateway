@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GroupData, GroupInfo, PortalSurfaceMetricSummary, SelectedSurface } from '../types'
 import RoutesList from '../components/RoutesList'
 import SearchBar from '../components/SearchBar'
 import SurfaceDetailsPanel from '../components/SurfaceDetailsPanel'
 import { t } from '../i18n'
 import { CatalogSortMode } from '../hooks/useNavigation'
+import { buildRouteMetricKey } from '../metrics'
+import { surfacePriorityLevel, surfacePriorityReasonCodes, surfacePriorityScore, PriorityReasonCode } from '../priority'
 
 interface Props {
   sortedFilteredRoutes: GroupData[]
@@ -60,6 +62,19 @@ export default function PosturePage({
     : null
   const [warningsDismissed, setWarningsDismissed] = useState(false)
 
+  type PrioritySurfaceItem = {
+    id: string
+    surface: SelectedSurface
+    title: string
+    owner: string
+    group: string
+    reasonCode: PriorityReasonCode | null
+    level: ReturnType<typeof surfacePriorityLevel>
+    score: number
+    traffic: number
+    errorRate: number
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined' || !warningStateKey) return
     setWarningsDismissed(window.localStorage.getItem(warningStateKey) === 'true')
@@ -70,6 +85,157 @@ export default function PosturePage({
     if (typeof window !== 'undefined' && warningStateKey) {
       window.localStorage.setItem(warningStateKey, 'true')
     }
+  }
+
+  const priorityItems = useMemo<PrioritySurfaceItem[]>(() => {
+    const items: PrioritySurfaceItem[] = []
+
+    const joinPath = (prefix: string, path: string) => {
+      const parts = [prefix, path].map(s => s.trim()).filter(s => s && s !== '/').map(s => s.replace(/\/+$/, ''))
+      return parts.length === 0 ? '/' : parts.join('/')
+    }
+
+    const normPath = (p: string) => {
+      const trimmed = p.trim()
+      return trimmed.length > 1 && trimmed.endsWith('/') ? trimmed.slice(0, -1) : (trimmed.startsWith('/') ? trimmed : `/${trimmed}`)
+    }
+
+    for (const group of sortedFilteredRoutes) {
+      for (const route of group.routes) {
+        const routeMetric = routeMetricsIndex[buildRouteMetricKey(group.name, normPath(joinPath(group.prefix, route.path_prefix)))] ?? null
+        const routeRequests = routeMetric?.requests ?? 0
+        const routeErrors = routeMetric ? routeMetric.client_errors + routeMetric.server_errors : 0
+        const routeErrorRate = routeRequests > 0 ? routeErrors / routeRequests : 0
+        for (const method of route.methods) {
+          const score = surfacePriorityScore({
+            authRequired: method.auth_required,
+            hasRateLimit: method.has_rate_limit || route.has_rate_limit,
+            deprecated: route.deprecated || route.metadata.status === 'deprecated',
+            experimental: route.metadata.status === 'experimental',
+            hasOpenApi: route.has_openapi,
+            managementSurface: route.surface_context === 'management',
+            ownerTeam: route.metadata.owner_team,
+            docsUrl: route.metadata.docs_url,
+            runbookUrl: route.metadata.runbook_url,
+            supportChannel: route.metadata.support_channel,
+            requests: routeRequests,
+            errorRate: routeErrorRate,
+            rateLimitedResponses: routeMetric?.rate_limited_responses ?? 0,
+          })
+          const reasons = surfacePriorityReasonCodes({
+            authRequired: method.auth_required,
+            hasRateLimit: method.has_rate_limit || route.has_rate_limit,
+            deprecated: route.deprecated || route.metadata.status === 'deprecated',
+            experimental: route.metadata.status === 'experimental',
+            hasOpenApi: route.has_openapi,
+            managementSurface: route.surface_context === 'management',
+            ownerTeam: route.metadata.owner_team,
+            docsUrl: route.metadata.docs_url,
+            runbookUrl: route.metadata.runbook_url,
+            supportChannel: route.metadata.support_channel,
+            requests: routeRequests,
+            errorRate: routeErrorRate,
+            rateLimitedResponses: routeMetric?.rate_limited_responses ?? 0,
+          })
+
+          items.push({
+            id: `${group.name}:${route.path_prefix}:${method.method}`,
+            surface: {
+              kind: 'route',
+              id: `${route.path_prefix}::${method.method}`,
+              group_name: group.name,
+              group_prefix: group.prefix,
+              group_middlewares: group.middlewares,
+              route,
+              method
+            },
+            title: `${method.method} ${route.path_prefix}`,
+            owner: route.metadata.owner_team || '—',
+            group: group.name,
+            reasonCode: reasons[0] ?? null,
+            level: surfacePriorityLevel(score),
+            score,
+            traffic: routeRequests,
+            errorRate: routeErrorRate,
+          })
+        }
+      }
+
+      for (const websocket of group.websockets) {
+        const score = surfacePriorityScore({
+          authRequired: websocket.auth_required,
+          hasRateLimit: websocket.has_rate_limit,
+          deprecated: websocket.deprecated || websocket.metadata.status === 'deprecated',
+          experimental: websocket.metadata.status === 'experimental',
+          hasOpenApi: false,
+          managementSurface: false,
+          ownerTeam: websocket.metadata.owner_team,
+          docsUrl: websocket.metadata.docs_url,
+          runbookUrl: websocket.metadata.runbook_url,
+          supportChannel: websocket.metadata.support_channel,
+        })
+        const reasons = surfacePriorityReasonCodes({
+          authRequired: websocket.auth_required,
+          hasRateLimit: websocket.has_rate_limit,
+          deprecated: websocket.deprecated || websocket.metadata.status === 'deprecated',
+          experimental: websocket.metadata.status === 'experimental',
+          hasOpenApi: false,
+          managementSurface: false,
+          ownerTeam: websocket.metadata.owner_team,
+          docsUrl: websocket.metadata.docs_url,
+          runbookUrl: websocket.metadata.runbook_url,
+          supportChannel: websocket.metadata.support_channel,
+        })
+
+        items.push({
+          id: `${group.name}:ws:${websocket.path}`,
+          surface: {
+            kind: 'websocket',
+            id: `ws::${websocket.path}`,
+            group_name: group.name,
+            group_prefix: group.prefix,
+            group_middlewares: group.middlewares,
+            websocket
+          },
+          title: `WS ${websocket.path}`,
+          owner: websocket.metadata.owner_team || '—',
+          group: group.name,
+          reasonCode: reasons[0] ?? null,
+          level: surfacePriorityLevel(score),
+          score,
+          traffic: 0,
+          errorRate: 0,
+        })
+      }
+    }
+
+    return items.sort((a, b) => b.score - a.score || b.traffic - a.traffic || a.title.localeCompare(b.title)).slice(0, 5)
+  }, [routeMetricsIndex, sortedFilteredRoutes])
+
+  const priorityCounts = useMemo(() => {
+    return priorityItems.reduce((acc, item) => {
+      acc[item.level] += 1
+      return acc
+    }, { critical: 0, review: 0, controlled: 0 })
+  }, [priorityItems])
+
+  const priorityReasonLabel = (code: PriorityReasonCode | null) => {
+    if (!code) return ''
+    return t(
+      code === 'managementPublic' ? 'posture.reasonManagementPublic'
+        : code === 'public' ? 'posture.reasonPublic'
+          : code === 'noRateLimit' ? 'posture.reasonNoRateLimit'
+            : code === 'deprecated' ? 'posture.reasonDeprecated'
+              : code === 'experimental' ? 'posture.reasonExperimental'
+                : code === 'missingOwner' ? 'posture.reasonMissingOwner'
+                  : code === 'missingDocs' ? 'posture.reasonMissingDocs'
+                    : code === 'missingRunbook' ? 'posture.reasonMissingRunbook'
+                      : code === 'missingSupport' ? 'posture.reasonMissingSupport'
+                        : code === 'highTraffic' ? 'posture.reasonHighTraffic'
+                          : code === 'highErrors' ? 'posture.reasonHighErrors'
+                            : code === 'rateLimited' ? 'posture.reasonRateLimited'
+                              : 'posture.reasonOpenApiMissing'
+    )
   }
 
   return (
@@ -166,6 +332,63 @@ export default function PosturePage({
           <div>
             <strong>{t('metrics.emptyWindowTitle')}</strong>
             <div style={{ marginTop: 4 }}>{t('metrics.emptyWindowBody')}</div>
+          </div>
+        </div>
+      )}
+
+      {!selectedSurface && priorityItems.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)' }}>
+                {t('posture.priorityTitle')}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                {t('posture.priorityBody')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span className="badge badge-red">{t('posture.priorityCritical')}: {priorityCounts.critical}</span>
+              <span className="badge badge-amber">{t('posture.priorityNeedsReview')}: {priorityCounts.review}</span>
+              <span className="badge badge-green">{t('posture.priorityControlled')}: {priorityCounts.controlled}</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+            {priorityItems.map((item) => {
+              const badgeClass = item.level === 'critical'
+                ? 'badge-red'
+                : item.level === 'review'
+                  ? 'badge-amber'
+                  : 'badge-green'
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelectSurface(item.surface)}
+                  className="card"
+                  style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 12, padding: 12, textAlign: 'left', cursor: 'pointer', alignItems: 'center' }}
+                >
+                  <div style={{ minWidth: 0, display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className={`badge ${badgeClass}`}>{t(item.level === 'critical' ? 'posture.priorityCritical' : item.level === 'review' ? 'posture.priorityNeedsReview' : 'posture.priorityControlled')}</span>
+                      <strong style={{ fontSize: 13, color: 'var(--color-text)' }}>{item.title}</strong>
+                      {item.reasonCode && <span className="badge badge-gray">{priorityReasonLabel(item.reasonCode)}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                      <span>{t('routes.owner')}: {item.owner}</span>
+                      <span>·</span>
+                      <span>{t('metrics.requests')}: {item.traffic}</span>
+                      <span>·</span>
+                      <span>{t('metrics.errorRate')}: {(item.errorRate * 100).toFixed(item.errorRate >= 0.1 ? 0 : 1)}%</span>
+                    </div>
+                  </div>
+                  <span className="btn btn-secondary btn-sm" style={{ minHeight: 36, padding: '0 14px' }}>
+                    {t('posture.priorityReview')}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

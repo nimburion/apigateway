@@ -132,10 +132,10 @@ export default function GroupsPage({
               <td>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenPosture(group.name)} title={t('groupsInfo.openPosture')}>
-                    Posture
+                    {t('nav.posture')}
                   </button>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMetrics(group.name)} title={t('nav.metrics')}>
-                    Metrics
+                    {t('nav.metrics')}
                   </button>
                 </div>
               </td>

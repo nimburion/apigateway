@@ -1,9 +1,20 @@
-import { GroupData, PortalMetricsData, PortalMetricsDelta, PortalMetricsSnapshot, PortalMetricsTrendPoint, PortalMetricsTrendSummary, PortalPathMetric } from './types'
+import { GroupData, PortalMetricsData, PortalMetricsDelta, PortalMetricsSnapshot, PortalMetricsSummary, PortalMetricsTrendPoint, PortalMetricsTrendSummary, PortalPathMetric } from './types'
 import { correlateMetricsWithCatalog, filterMetricsByGroup, filterMetricsBySurface } from './metrics'
 
 const storageKey = 'nimburion.portal.metrics.history'
 const maxSnapshots = 96
 const maxAgeMs = 24 * 60 * 60 * 1000
+type StatusSummaryKey = 'status_401_responses' | 'status_403_responses' | 'status_429_responses' | 'status_502_responses' | 'status_503_responses' | 'status_504_responses'
+
+function summaryCount(summary: PortalMetricsSummary, key: StatusSummaryKey): number {
+  return summary[key] ?? 0
+}
+
+function summaryDelta(current: PortalMetricsSummary, baseline: PortalMetricsSummary | null, key: StatusSummaryKey): number {
+  const currentValue = summaryCount(current, key)
+  return baseline ? Math.max(0, currentValue - summaryCount(baseline, key)) : currentValue
+}
+
 function canUseStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
@@ -234,6 +245,26 @@ export function buildMetricsTrendPoints(
       const intervalLatency = previousScoped && intervalRequests > 0
         ? Math.max(0, (scoped.summary.average_latency_ms * scoped.summary.total_requests) - (previousScoped.summary.average_latency_ms * previousScoped.summary.total_requests)) / intervalRequests
         : scoped.summary.average_latency_ms
+      const currentOtherClientResponses = Math.max(0, (scoped.summary.client_errors ?? 0) - (scoped.summary.status_401_responses ?? 0) - (scoped.summary.status_403_responses ?? 0) - (scoped.summary.status_429_responses ?? 0))
+      const previousOtherClientResponses = previousScoped
+        ? Math.max(0, (previousScoped.summary.client_errors ?? 0) - (previousScoped.summary.status_401_responses ?? 0) - (previousScoped.summary.status_403_responses ?? 0) - (previousScoped.summary.status_429_responses ?? 0))
+        : 0
+      const currentOtherServerResponses = Math.max(0, (scoped.summary.server_errors ?? 0) - (scoped.summary.status_502_responses ?? 0) - (scoped.summary.status_503_responses ?? 0) - (scoped.summary.status_504_responses ?? 0))
+      const previousOtherServerResponses = previousScoped
+        ? Math.max(0, (previousScoped.summary.server_errors ?? 0) - (previousScoped.summary.status_502_responses ?? 0) - (previousScoped.summary.status_503_responses ?? 0) - (previousScoped.summary.status_504_responses ?? 0))
+        : 0
+      const intervalStatus401Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_401_responses') : 0
+      const intervalStatus403Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_403_responses') : 0
+      const intervalStatus429Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_429_responses') : 0
+      const intervalOtherClientResponses = previousScoped
+        ? Math.max(0, currentOtherClientResponses - previousOtherClientResponses)
+        : 0
+      const intervalStatus502Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_502_responses') : 0
+      const intervalStatus503Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_503_responses') : 0
+      const intervalStatus504Responses = previousScoped ? summaryDelta(scoped.summary, previousScoped.summary, 'status_504_responses') : 0
+      const intervalOtherServerResponses = previousScoped
+        ? Math.max(0, currentOtherServerResponses - previousOtherServerResponses)
+        : 0
       const matchedRequests = previousScoped
         ? Math.max(0, scoped.catalog_coverage.matched_requests - previousScoped.catalog_coverage.matched_requests)
         : 0
@@ -258,7 +289,15 @@ export function buildMetricsTrendPoints(
         matched_requests: matchedRequests,
         unmatched_requests: unmatchedRequests,
         matched_paths: matchedPaths,
-        unmatched_paths: unmatchedPaths
+        unmatched_paths: unmatchedPaths,
+        status_401_responses: intervalStatus401Responses,
+        status_403_responses: intervalStatus403Responses,
+        status_429_responses: intervalStatus429Responses,
+        status_other_client_responses: intervalOtherClientResponses,
+        status_502_responses: intervalStatus502Responses,
+        status_503_responses: intervalStatus503Responses,
+        status_504_responses: intervalStatus504Responses,
+        status_other_server_responses: intervalOtherServerResponses
       }
     })
 }
@@ -286,6 +325,8 @@ export function buildWindowMetricsData(
   const currentScoped = correlateMetricsWithCatalog(currentSnapshot.data, routes)
   const baselineScoped = baselineSnapshot ? correlateMetricsWithCatalog(baselineSnapshot.data, routes) : null
   const baselinePaths = baselineScoped ? buildPathIndex(baselineScoped) : new Map<string, PortalPathMetric>()
+  const currentSummary = currentScoped.summary
+  const baselineSummary = baselineScoped?.summary ?? null
 
   const aggregatedPaths: PortalPathMetric[] = []
   let totalRequests = 0
@@ -344,12 +385,20 @@ export function buildWindowMetricsData(
   return {
     summary: {
       total_requests: totalRequests,
-      in_flight_requests: currentScoped.summary.in_flight_requests,
+      in_flight_requests: currentSummary.in_flight_requests,
       success_responses: totalSuccessResponses,
       client_errors: totalClientErrors,
       server_errors: totalServerErrors,
       rate_limited_responses: totalRateLimitedResponses,
-      average_latency_ms: totalLatencyCount > 0 ? totalLatencySum / totalLatencyCount : currentScoped.summary.average_latency_ms
+      status_401_responses: summaryDelta(currentSummary, baselineSummary, 'status_401_responses'),
+      status_403_responses: summaryDelta(currentSummary, baselineSummary, 'status_403_responses'),
+      status_429_responses: baselineSummary
+        ? summaryDelta(currentSummary, baselineSummary, 'status_429_responses')
+        : currentSummary.status_429_responses ?? totalRateLimitedResponses,
+      status_502_responses: summaryDelta(currentSummary, baselineSummary, 'status_502_responses'),
+      status_503_responses: summaryDelta(currentSummary, baselineSummary, 'status_503_responses'),
+      status_504_responses: summaryDelta(currentSummary, baselineSummary, 'status_504_responses'),
+      average_latency_ms: totalLatencyCount > 0 ? totalLatencySum / totalLatencyCount : currentSummary.average_latency_ms
     },
     runtime: currentScoped.runtime,
     paths: aggregatedPaths.sort((left, right) => right.requests - left.requests || left.path.localeCompare(right.path)),

@@ -24,6 +24,54 @@ interface Props {
 type MatchFilter = 'all' | 'matched' | 'unmatched'
 type SignalFilter = 'all' | 'hot' | 'slow' | 'erroring'
 type SortMode = 'requests' | 'latency' | 'errorRate' | 'path'
+type PressureMetricKey =
+  | 'status_401'
+  | 'status_403'
+  | 'status_429'
+  | 'status_other_client'
+  | 'status_502'
+  | 'status_503'
+  | 'status_504'
+  | 'status_other_server'
+type PressureTrendValueKey = Exclude<keyof PortalMetricsTrendPoint, 'captured_at'>
+
+const pressureBreakdownStorageKey = 'nimburion.portal.metrics.breakdownMetrics'
+const defaultPressureMetricKeys: PressureMetricKey[] = [
+  'status_401',
+  'status_403',
+  'status_429',
+  'status_other_client',
+  'status_502',
+  'status_503',
+  'status_504',
+  'status_other_server'
+]
+const pressureMetricKeySet = new Set<PressureMetricKey>(defaultPressureMetricKeys)
+
+function isPressureMetricKey(value: string): value is PressureMetricKey {
+  return pressureMetricKeySet.has(value as PressureMetricKey)
+}
+
+function readPressureMetricKeys(): PressureMetricKey[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const raw = window.localStorage.getItem(pressureBreakdownStorageKey)
+    if (!raw) {
+      return []
+    }
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    const filtered = parsed.filter((value): value is PressureMetricKey => typeof value === 'string' && isPressureMetricKey(value))
+    return filtered
+  } catch {
+    return []
+  }
+}
 
 function SkeletonLine({
   className = ''
@@ -351,14 +399,6 @@ function clampRatio(value: number): number {
   return Math.min(1, value)
 }
 
-function meterTone(tone: 'teal' | 'emerald' | 'amber' | 'rose' | 'violet'): string {
-  if (tone === 'emerald') return 'bg-emerald-500'
-  if (tone === 'amber') return 'bg-amber-500'
-  if (tone === 'rose') return 'bg-rose-500'
-  if (tone === 'violet') return 'bg-violet-500'
-  return 'bg-teal-600'
-}
-
 function latencyTone(value: number): string {
   if (value >= 1000) {
     return 'text-rose-700'
@@ -471,28 +511,346 @@ function MetricSummaryCard({
   )
 }
 
-function FullscreenButton({
-  label,
-  onClick
+function TrafficPressurePanel({
+  trendPoints,
+  coverageAlert,
+  coverageState,
+  showStatusBreakdown,
+  onToggleStatusBreakdown,
+  selectedPressureMetrics,
+  onTogglePressureMetric,
+  currentErrorRate,
+  coverageGapRate,
+  latestTrendUnmatchedPaths,
+  latestTrendLatency,
+  latestTrendRequests,
+  totalRateLimited,
+  status401Responses,
+  status403Responses,
+  status429Responses,
+  status502Responses,
+  status503Responses,
+  status504Responses,
+  otherClientErrorResponses,
+  otherServerErrorResponses
 }: {
-  label: string
-  onClick: () => void
+  trendPoints: PortalMetricsTrendPoint[]
+  coverageAlert: {
+    title: string
+    headline: string
+    body: string
+    tone: 'amber'
+  } | null
+  coverageState: 'noTraffic' | 'stable' | 'gap'
+  showStatusBreakdown: boolean
+  onToggleStatusBreakdown: () => void
+  selectedPressureMetrics: PressureMetricKey[]
+  onTogglePressureMetric: (key: PressureMetricKey) => void
+  currentErrorRate: number
+  coverageGapRate: number
+  latestTrendUnmatchedPaths: number
+  latestTrendLatency: number
+  latestTrendRequests: number
+  totalRateLimited: number
+  status401Responses: number
+  status403Responses: number
+  status429Responses: number
+  status502Responses: number
+  status503Responses: number
+  status504Responses: number
+  otherClientErrorResponses: number
+  otherServerErrorResponses: number
 }) {
+  const hasTrend = trendPoints.length >= 2
+  const width = 1200
+  const height = 320
+  const paddingX = 48
+  const paddingY = 28
+  const bounds = { min: 0, max: 100, range: 100 }
+  const yTicks = buildYAxisTicks(bounds.min, bounds.max, 5)
+  const axisTicks = hasTrend ? buildTimeAxisTicks(trendPoints, 5) : []
+  const currentPressureTone = coverageState === 'noTraffic'
+    ? 'slate'
+    : coverageAlert
+    ? 'amber'
+    : currentErrorRate >= 0.05
+      ? 'amber'
+      : 'emerald'
+  const statusLabel = coverageState === 'noTraffic'
+    ? t('metrics.noTrafficTitle')
+    : coverageAlert
+    ? t('metrics.statusWarn')
+    : currentErrorRate >= 0.05
+      ? t('metrics.statusCritical')
+      : t('metrics.statusOk')
+  const statusToneClass = currentPressureTone === 'slate'
+    ? 'border-slate-200 bg-slate-100 text-slate-700'
+    : currentPressureTone === 'amber'
+      ? 'border-amber-200 bg-amber-50 text-amber-800'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  const currentErrorPercent = formatPercent(currentErrorRate)
+  const currentCoveragePercent = formatPercent(coverageGapRate)
+  const essentialSeries = [
+    { key: 'error_rate' as const, label: t('metrics.errorRate'), stroke: '#e11d48', values: trendPoints.map((point) => clampRatio(point.error_rate) * 100) },
+    { key: 'coverage_rate' as const, label: t('metrics.coverageRate'), stroke: '#0f766e', values: trendPoints.map((point) => point.coverage_rate * 100) }
+  ]
+  const clientTotal = status401Responses + status403Responses + status429Responses + otherClientErrorResponses
+  const serverTotal = status502Responses + status503Responses + status504Responses + otherServerErrorResponses
+  const breakdownOptions: Array<{
+    key: PressureMetricKey
+    label: string
+    valueKey: PressureTrendValueKey
+    value: number
+    ratioBase: number
+    tone: 'amber' | 'rose'
+    group: 'client' | 'server'
+    stroke: string
+  }> = [
+    { key: 'status_401', label: t('metrics.statusUnauthorized'), valueKey: 'status_401_responses', value: status401Responses, ratioBase: clientTotal, tone: 'amber', group: 'client', stroke: '#f59e0b' },
+    { key: 'status_403', label: t('metrics.statusForbidden'), valueKey: 'status_403_responses', value: status403Responses, ratioBase: clientTotal, tone: 'amber', group: 'client', stroke: '#d97706' },
+    { key: 'status_429', label: t('metrics.statusThrottled'), valueKey: 'status_429_responses', value: status429Responses, ratioBase: clientTotal, tone: 'amber', group: 'client', stroke: '#f97316' },
+    { key: 'status_other_client', label: t('metrics.statusOtherClient'), valueKey: 'status_other_client_responses', value: otherClientErrorResponses, ratioBase: clientTotal, tone: 'amber', group: 'client', stroke: '#8b5cf6' },
+    { key: 'status_502', label: t('metrics.statusBadGateway'), valueKey: 'status_502_responses', value: status502Responses, ratioBase: serverTotal, tone: 'rose', group: 'server', stroke: '#e11d48' },
+    { key: 'status_503', label: t('metrics.statusServiceUnavailable'), valueKey: 'status_503_responses', value: status503Responses, ratioBase: serverTotal, tone: 'rose', group: 'server', stroke: '#fb7185' },
+    { key: 'status_504', label: t('metrics.statusGatewayTimeout'), valueKey: 'status_504_responses', value: status504Responses, ratioBase: serverTotal, tone: 'rose', group: 'server', stroke: '#be123c' },
+    { key: 'status_other_server', label: t('metrics.statusOtherServer'), valueKey: 'status_other_server_responses', value: otherServerErrorResponses, ratioBase: serverTotal, tone: 'rose', group: 'server', stroke: '#dc2626' }
+  ]
+  const chartSeries = breakdownOptions
+    .filter((item) => selectedPressureMetrics.includes(item.key))
+    .map((item) => ({
+      ...item,
+      values: trendPoints.map((point) => {
+        const intervalRequests = point.total_requests > 0 ? point.total_requests : 0
+        return intervalRequests > 0 ? (point[item.valueKey] / intervalRequests) * 100 : 0
+      })
+    }))
+  const chartSeriesPaths = chartSeries.map((series) => ({
+    key: series.key,
+    label: series.label,
+    stroke: series.stroke,
+    latestValue: series.values[series.values.length - 1] ?? 0,
+    path: hasTrend ? buildLinePathWithBounds(series.values, width, height, paddingX, paddingY, bounds) : ''
+  }))
+  const essentialSeriesPaths = essentialSeries.map((series) => ({
+    key: series.key,
+    label: series.label,
+    stroke: series.stroke,
+    path: hasTrend ? buildLinePathWithBounds(series.values, width, height, paddingX, paddingY, bounds) : ''
+  }))
+  const legendItems = [
+    ...essentialSeriesPaths,
+    ...chartSeriesPaths
+  ]
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-900"
-      aria-label={label}
-      title={label}
-    >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M8 3H3v5" />
-        <path d="M16 3h5v5" />
-        <path d="M21 16v5h-5" />
-        <path d="M3 16v5h5" />
-      </svg>
-    </button>
+    <section className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white px-5 py-5 shadow-sm">
+      <div className={`pointer-events-none absolute -right-16 top-0 h-44 w-44 rounded-full blur-3xl ${
+        currentPressureTone === 'slate'
+          ? 'bg-slate-100/70'
+          : currentPressureTone === 'amber'
+            ? 'bg-amber-100/70'
+            : 'bg-emerald-100/70'
+      }`} />
+      <div className={`pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full blur-3xl ${
+        currentPressureTone === 'slate'
+          ? 'bg-slate-100/50'
+          : currentPressureTone === 'amber'
+            ? 'bg-rose-100/50'
+            : 'bg-teal-100/50'
+      }`} />
+
+      <div className="relative flex h-full flex-col">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.summary')}</div>
+              <h4 className="mt-1 text-lg font-semibold text-slate-950">{t('metrics.trendsOverview')}</h4>
+              <p className="mt-1 text-sm text-slate-600">{t('metrics.trendsOverviewBody')}</p>
+            </div>
+            <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${statusToneClass}`}>
+              {statusLabel}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex min-h-[110px] flex-col justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.errorRate')}</div>
+              <div className="mt-2 text-[2rem] font-semibold leading-none text-slate-950">{currentErrorPercent}</div>
+              <div className="mt-1 text-xs text-slate-600">{formatNumber(Math.round(currentErrorRate * latestTrendRequests))} {t('metrics.errors')}</div>
+            </div>
+            <div className="flex min-h-[110px] flex-col justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.coverageGap')}</div>
+              <div className="mt-2 text-[2rem] font-semibold leading-none text-slate-950">{currentCoveragePercent}</div>
+              <div className="mt-1 text-xs text-slate-600">
+                {coverageState === 'noTraffic'
+                  ? t('metrics.noTrafficBody')
+                  : `${formatNumber(latestTrendUnmatchedPaths)} ${t('metrics.unmatchedPaths')}`}
+              </div>
+            </div>
+            <div className="flex min-h-[110px] flex-col justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.requests')}</div>
+              <div className="mt-2 text-[2rem] font-semibold leading-none text-slate-950">{formatNumber(latestTrendRequests)}</div>
+              <div className="mt-1 text-xs text-slate-600">{formatNumber(totalRateLimited)} {t('metrics.statusThrottled')}</div>
+            </div>
+            <div className="flex min-h-[110px] flex-col justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.avgLatency')}</div>
+              <div className="mt-2 text-[2rem] font-semibold leading-none text-slate-950">{formatLatency(latestTrendLatency)}</div>
+              <div className="mt-1 text-xs text-slate-600">{t('metrics.current')}</div>
+            </div>
+          </div>
+        </div>
+
+        {coverageAlert && (
+          <div className="mt-4 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">{coverageAlert.title}</div>
+            <div className="mt-1 text-sm font-semibold">{coverageAlert.headline}</div>
+            <div className="mt-1 text-sm text-amber-900/80">{coverageAlert.body}</div>
+          </div>
+        )}
+
+        <div className="mt-4 rounded-[1.35rem] border border-slate-200 bg-slate-50/80 px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              {t('metrics.trendsOverview')}
+            </div>
+          </div>
+          {hasTrend ? (
+            <div className="mt-3">
+              <svg
+                viewBox={`0 0 ${width} ${height}`}
+                className="h-[280px] w-full"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={t('metrics.trendsOverview')}
+              >
+                {yTicks.map((tick) => {
+                  const y = paddingY + tick.ratio * (height - paddingY * 2)
+                  return (
+                    <g key={`pressure-tick-${tick.value}`}>
+                      <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="rgba(15,23,42,0.08)" />
+                      <text x={paddingX - 10} y={y + 4} textAnchor="end" fill="rgba(71,85,105,0.9)" fontSize="12" fontWeight={600}>
+                        {Math.round(tick.value)}%
+                      </text>
+                    </g>
+                  )
+                })}
+                {axisTicks.map((tick) => {
+                  const x = buildPointX(tick.index, trendPoints.length, width, paddingX)
+                  return (
+                    <g key={`pressure-x-${tick.index}`}>
+                      <line x1={x} y1={height - paddingY} x2={x} y2={height - paddingY + 10} stroke="rgba(15,23,42,0.18)" />
+                      <text x={x} y={height - 2} textAnchor="middle" fill="rgba(71,85,105,0.84)" fontSize="12" fontWeight={600}>
+                        {tick.label}
+                      </text>
+                    </g>
+                  )
+                })}
+                {essentialSeriesPaths.map((series) => (
+                  <path key={series.key} d={series.path} fill="none" stroke={series.stroke} strokeWidth="2.8" strokeLinecap="round" />
+                ))}
+                {chartSeriesPaths.map((series) => (
+                  <path key={series.key} d={series.path} fill="none" stroke={series.stroke} strokeWidth="2.8" strokeLinecap="round" />
+                ))}
+              </svg>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-slate-600">
+                {legendItems.map((series) => (
+                  <span key={`pressure-legend-${series.key}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: series.stroke }} />
+                    {series.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-4 py-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.errorRate')}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{currentErrorPercent}</div>
+              </div>
+              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-4 py-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.coverageGap')}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">{currentCoveragePercent}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.outcomeTitle')}</div>
+          <button
+            type="button"
+            onClick={onToggleStatusBreakdown}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+          >
+            {showStatusBreakdown ? t('metrics.hideStatusBreakdown') : t('metrics.showStatusBreakdown')}
+          </button>
+        </div>
+
+        {showStatusBreakdown && (
+          <div className="mt-3 space-y-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.seriesInGraph')}</div>
+            <div className="flex flex-wrap gap-2">
+              {breakdownOptions.map((item) => {
+                const active = selectedPressureMetrics.includes(item.key)
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => onTogglePressureMetric(item.key)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      active
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'
+                    }`}
+                    aria-pressed={active}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.stroke }} />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-2">
+              <div className="space-y-2">
+                {breakdownOptions.filter((item) => item.group === 'client').map((item) => (
+                  <div key={item.key} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.stroke }} />
+                      <span>{item.label}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-slate-950">{formatNumber(item.value)}</div>
+                      <div className="text-[11px] text-slate-500">{formatPercent(item.ratioBase > 0 ? item.value / item.ratioBase : 0)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {breakdownOptions.filter((item) => item.group === 'server').map((item) => (
+                  <div key={item.key} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.stroke }} />
+                      <span>{item.label}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-slate-950">{formatNumber(item.value)}</div>
+                      <div className="text-[11px] text-slate-500">{formatPercent(item.ratioBase > 0 ? item.value / item.ratioBase : 0)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {chartSeriesPaths.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                {t('metrics.selectMetricsHint')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -703,14 +1061,6 @@ function buildCountChartBounds(values: number[]) {
   }
 }
 
-function buildPercentChartBounds() {
-  return {
-    min: 0,
-    max: 100,
-    range: 100
-  }
-}
-
 function buildYAxisTicks(min: number, max: number, count = 3) {
   if (count <= 1) {
     return [{ value: max, ratio: 0 }]
@@ -906,157 +1256,6 @@ function cursorIndexFromEvent(event: MouseEvent<SVGSVGElement>, pointCount: numb
   return bestIndex
 }
 
-function CoverageTrendChart({
-  trendPoints,
-  comparisonWindowMinutes,
-  hoveredIndex,
-  onHoverIndexChange,
-  frameClassName = ''
-}: {
-  trendPoints: PortalMetricsTrendPoint[]
-  comparisonWindowMinutes: number
-  hoveredIndex: number | null
-  onHoverIndexChange: (index: number | null) => void
-  frameClassName?: string
-}) {
-  const [dialogOpen, setDialogOpen] = useState(false)
-  if (trendPoints.length < 2) return null
-  const activeIndex = hoveredIndex ?? trendPoints.length - 1
-  const values = trendPoints.map((point) => point.coverage_rate * 100)
-
-  const renderChart = (expanded = false) => {
-    const width = expanded ? 1440 : 1200
-    const height = expanded ? 300 : 168
-    const paddingX = expanded ? 64 : 52
-    const paddingY = expanded ? 30 : 20
-    const axisTicks = buildTimeAxisTicks(trendPoints, expanded ? 5 : 4)
-    const bounds = buildPercentChartBounds()
-    const yTicks = buildYAxisTicks(bounds.min, bounds.max, 3)
-    const linePath = buildLinePathWithBounds(values, width, height, paddingX, paddingY, bounds)
-    const activePoint = buildSeriesDotsWithBounds(values, width, height, paddingX, paddingY, bounds)[activeIndex]
-
-    return (
-      <>
-        <div className={`rounded-2xl bg-slate-50 px-3 py-3 ${expanded ? 'border border-slate-200' : ''}`}>
-          <svg
-            viewBox={`0 0 ${width} ${height}`}
-            className={expanded ? 'h-72 w-full' : 'h-44 w-full'}
-            preserveAspectRatio="none"
-            role="img"
-            aria-label={t('metrics.coverageTrendTitle')}
-            onMouseMove={(event) => onHoverIndexChange(cursorIndexFromEvent(event, trendPoints.length, paddingX, width))}
-            onMouseLeave={() => onHoverIndexChange(null)}
-          >
-            {yTicks.map((tick) => {
-              const y = paddingY + tick.ratio * (height - paddingY * 2)
-              return (
-                <g key={`cov-${expanded ? 'expanded' : 'inline'}-${tick.value}`}>
-                  <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#e2e8f0" />
-                  <text x={paddingX - 8} y={y + 3} textAnchor="end" fill="#64748b" fontSize="11" fontWeight={600}>
-                    {Math.max(0, Math.min(100, Math.round(tick.value)))}%
-                  </text>
-                </g>
-              )
-            })}
-            <path d={linePath} fill="none" stroke="#0f766e" strokeWidth="3" strokeLinecap="round" />
-            {activePoint && (
-              <circle
-                cx={activePoint.x}
-                cy={activePoint.y}
-                r={5}
-                fill="#0f766e"
-                className="transition"
-              >
-                <title>{`${formatTrendPointLabel(trendPoints[activeIndex].captured_at)} · ${Math.round(trendPoints[activeIndex].coverage_rate * 100)}% ${t('metrics.catalogCoverage')}`}</title>
-              </circle>
-            )}
-            {activeIndex >= 0 && (
-              <line
-                x1={trendPoints.length === 1 ? width / 2 : paddingX + (activeIndex / (trendPoints.length - 1)) * (width - paddingX * 2)}
-                y1={paddingY}
-                x2={trendPoints.length === 1 ? width / 2 : paddingX + (activeIndex / (trendPoints.length - 1)) * (width - paddingX * 2)}
-                y2={height - paddingY}
-                stroke="#0f172a"
-                strokeOpacity="0.24"
-                strokeDasharray="5 5"
-              />
-            )}
-          </svg>
-        </div>
-        <div className="mt-2 text-[11px] text-slate-500">
-          <div className="mb-2 font-medium uppercase tracking-[0.14em] text-slate-400">{t('metrics.timeline')}</div>
-          <div
-            className="relative h-5"
-            style={{
-              marginLeft: `${(paddingX / width) * 100}%`,
-              width: `${((width - paddingX * 2) / width) * 100}%`
-            }}
-          >
-            {axisTicks.map((tick) => (
-              <span
-                key={`coverage-${expanded ? 'expanded' : 'inline'}-tick-${tick.index}`}
-                className="absolute -translate-x-1/2 whitespace-nowrap"
-                style={{ left: `${(tick.index / Math.max(1, trendPoints.length - 1)) * 100}%` }}
-              >
-                {tick.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  return (
-    <>
-    <div className={`rounded-2xl border bg-white px-4 py-4 shadow-sm ${frameClassName || 'border-slate-200'}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">{t('metrics.coverageTrendTitle')}</div>
-          <div className="mt-1 text-xs text-slate-600">{t('metrics.coverageTrendBody')}</div>
-        </div>
-        <div className="flex items-start gap-3">
-          <div className="text-right">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{`${comparisonWindowMinutes}m`}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.current')}</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">{Math.round(trendPoints[activeIndex].coverage_rate * 100)}%</div>
-          </div>
-          <FullscreenButton label="Expand coverage chart" onClick={() => setDialogOpen(true)} />
-        </div>
-      </div>
-      {trendPoints.length < 4 && (
-        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          {t('metrics.lowDataNotice')}
-        </div>
-      )}
-      {renderChart(false)}
-    </div>
-    <ChartDialog
-      open={dialogOpen}
-      title={t('metrics.coverageTrendTitle')}
-      subtitle={`${t('metrics.coverageTrendBody')} · ${comparisonWindowMinutes}m`}
-      onClose={() => setDialogOpen(false)}
-    >
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.current')}</div>
-          <div className="mt-1 text-lg font-semibold text-slate-950">{Math.round(values[activeIndex])}%</div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.peak')}</div>
-          <div className="mt-1 text-lg font-semibold text-slate-950">{Math.round(Math.max(...values))}%</div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.low')}</div>
-          <div className="mt-1 text-lg font-semibold text-slate-950">{Math.round(Math.min(...values))}%</div>
-        </div>
-      </div>
-      {renderChart(true)}
-    </ChartDialog>
-    </>
-  )
-}
-
 export default function MetricsDashboard({
   data,
   history,
@@ -1078,21 +1277,33 @@ export default function MetricsDashboard({
   const [sortMode, setSortMode] = useState<SortMode>('requests')
   const [topPathLimit, setTopPathLimit] = useState(5)
   const [hoveredSummaryIndex, setHoveredSummaryIndex] = useState<number | null>(null)
-  const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null)
   const [summaryDialog, setSummaryDialog] = useState<null | 'requests' | 'latency' | 'errors'>(null)
+  const [showStatusBreakdown, setShowStatusBreakdown] = useState(false)
+  const [selectedPressureMetrics, setSelectedPressureMetrics] = useState<PressureMetricKey[]>(readPressureMetricKeys)
   const effectiveErrorKind = errorKind ?? (errorStatus === 401 || errorStatus === 403 ? 'auth' : null)
 
   const totalErrors = data ? data.summary.client_errors + data.summary.server_errors : 0
   const totalRateLimited = data ? data.summary.rate_limited_responses : 0
-  const successRate = data && data.summary.total_requests > 0
-    ? data.summary.success_responses / data.summary.total_requests
-    : 0
-  const clientErrorRate = data && data.summary.total_requests > 0
-    ? data.summary.client_errors / data.summary.total_requests
-    : 0
-  const serverErrorRate = data && data.summary.total_requests > 0
-    ? data.summary.server_errors / data.summary.total_requests
-    : 0
+  const status401Responses = data?.summary.status_401_responses ?? 0
+  const status403Responses = data?.summary.status_403_responses ?? 0
+  const status429Responses = data?.summary.status_429_responses ?? totalRateLimited
+  const status502Responses = data?.summary.status_502_responses ?? 0
+  const status503Responses = data?.summary.status_503_responses ?? 0
+  const status504Responses = data?.summary.status_504_responses ?? 0
+  const otherClientErrorResponses = Math.max(0, (data?.summary.client_errors ?? 0) - status401Responses - status403Responses - status429Responses)
+  const otherServerErrorResponses = Math.max(0, (data?.summary.server_errors ?? 0) - status502Responses - status503Responses - status504Responses)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem(pressureBreakdownStorageKey, JSON.stringify(selectedPressureMetrics))
+  }, [selectedPressureMetrics])
+
+  const togglePressureMetric = (key: PressureMetricKey) => {
+    setSelectedPressureMetrics((current) => current.includes(key)
+      ? current.filter((candidate) => candidate !== key)
+      : [...current, key])
+  }
 
   const allPaths = data?.paths ?? []
   const normalizedQuery = query.trim().toLowerCase()
@@ -1192,11 +1403,19 @@ export default function MetricsDashboard({
     ? latestTrendMatchedPaths / latestTrendTotalObservedPaths
     : 0
   const coverageGapRate = latestTrendTotalObservedPaths > 0 ? 1 - matchedPathRate : 0
-  const coverageState: 'no-traffic' | 'stable' | 'gap' = latestTrendTotalObservedPaths === 0
-    ? 'no-traffic'
+  const coverageState: 'noTraffic' | 'stable' | 'gap' = latestTrendTotalObservedPaths === 0 && latestTrendRequests === 0
+    ? 'noTraffic'
     : coverageGapRate > 0
       ? 'gap'
       : 'stable'
+  const coverageAlert = coverageState === 'gap'
+    ? {
+        title: t('metrics.coverageGap'),
+        headline: `${formatNumber(latestTrendUnmatchedPaths)} ${t('metrics.unmatchedPaths')}`,
+        body: `${formatPercent(coverageGapRate)} of observed traffic is not mapped to catalog routes.`,
+        tone: 'amber' as const
+      }
+    : null
 
   const worstPath = data?.paths.reduce<PortalPathMetric | null>((best, current) => {
     if (!best) return current
@@ -1434,17 +1653,6 @@ export default function MetricsDashboard({
                 expandLabel={t('metrics.errorRate')}
               />
             </div>
-            <CoverageTrendChart
-              trendPoints={trendPoints}
-              comparisonWindowMinutes={comparisonWindowMinutes}
-              hoveredIndex={hoveredTrendIndex}
-              onHoverIndexChange={setHoveredTrendIndex}
-              frameClassName={coverageState === 'stable'
-                ? 'border-emerald-200 bg-emerald-50/35'
-                : coverageState === 'gap'
-                  ? 'border-amber-200 bg-white'
-                  : 'border-slate-200 bg-white'}
-            />
           </div>
         ) : (
           <div className="rounded-[1.6rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-sm text-slate-600">
@@ -1563,7 +1771,7 @@ export default function MetricsDashboard({
 
       {!loading && data && (
         <>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 px-4 py-4 shadow-sm">
+          <div className="space-y-4">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{t('metrics.coverage')}</div>
@@ -1571,87 +1779,30 @@ export default function MetricsDashboard({
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-              <div className={`self-start rounded-2xl border px-4 py-3 ${coverageState === 'gap' ? 'border-amber-200 bg-white' : coverageState === 'stable' ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-white'}`}>
-                {coverageState === 'no-traffic' ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                      {t('metrics.noTrafficTitle')}
-                    </span>
-                    <span className="text-sm text-slate-600">
-                      {t('metrics.noTrafficBody')}
-                    </span>
-                  </div>
-                ) : coverageState === 'stable' ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
-                      {t('metrics.coverageStableMapped')}
-                    </span>
-                    <span className="text-sm text-slate-600">
-                      {t('metrics.allObservedPathsMapped')}
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{t('metrics.coverageGap')}</div>
-                        <div className="mt-1 text-sm text-slate-600">
-                          {`${t('metrics.coverageGap')}: ${formatPercent(coverageGapRate)}`}
-                        </div>
-                      </div>
-                      <div className="text-3xl font-semibold text-slate-950">{formatNumber(latestTrendUnmatchedPaths)}</div>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="flex h-full">
-                        <div
-                          className={meterTone('emerald')}
-                          style={{ width: `${Math.max(0, Math.min(100, matchedPathRate * 100))}%` }}
-                        />
-                        <div
-                          className={meterTone('amber')}
-                          style={{ width: `${Math.max(0, Math.min(100, coverageGapRate * 100))}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{t('metrics.outcomeTitle')}</div>
-                    <div className="mt-1 text-sm text-slate-600">{t('metrics.requests')}</div>
-                  </div>
-                  <div className="text-2xl font-semibold text-slate-950">{formatNumber(data.summary.total_requests)}</div>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className="flex h-full">
-                    <div className={meterTone('emerald')} style={{ width: `${Math.max(0, Math.min(100, successRate * 100))}%` }} />
-                    <div className={meterTone('amber')} style={{ width: `${Math.max(0, Math.min(100, clientErrorRate * 100))}%` }} />
-                    <div className={meterTone('rose')} style={{ width: `${Math.max(0, Math.min(100, serverErrorRate * 100))}%` }} />
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {[
-                    { label: t('metrics.success'), value: data.summary.success_responses, ratio: successRate, tone: 'emerald' as const },
-                    { label: t('metrics.clientErrors'), value: data.summary.client_errors, ratio: clientErrorRate, tone: 'amber' as const },
-                    { label: t('metrics.serverErrors'), value: data.summary.server_errors, ratio: serverErrorRate, tone: 'rose' as const }
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
-                      <div className="flex items-center gap-2 text-slate-700">
-                        <span className={`h-2.5 w-2.5 rounded-full ${meterTone(item.tone)}`} />
-                        <span>{item.label}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-slate-950">{formatPercent(item.ratio)}</div>
-                        <div className="text-xs text-slate-500">{formatNumber(item.value)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-5">
+              <TrafficPressurePanel
+                trendPoints={trendPoints}
+                coverageAlert={coverageAlert}
+                coverageState={coverageState}
+                showStatusBreakdown={showStatusBreakdown}
+                onToggleStatusBreakdown={() => setShowStatusBreakdown((value) => !value)}
+                selectedPressureMetrics={selectedPressureMetrics}
+                onTogglePressureMetric={togglePressureMetric}
+                currentErrorRate={currentErrorRate}
+                coverageGapRate={coverageGapRate}
+                latestTrendUnmatchedPaths={latestTrendUnmatchedPaths}
+                latestTrendLatency={latestTrendLatency}
+                latestTrendRequests={latestTrendRequests}
+                totalRateLimited={totalRateLimited}
+                status401Responses={status401Responses}
+                status403Responses={status403Responses}
+                status429Responses={status429Responses}
+                status502Responses={status502Responses}
+                status503Responses={status503Responses}
+                status504Responses={status504Responses}
+                otherClientErrorResponses={otherClientErrorResponses}
+                otherServerErrorResponses={otherServerErrorResponses}
+              />
             </div>
           </div>
 

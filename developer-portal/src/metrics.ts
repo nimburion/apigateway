@@ -7,6 +7,12 @@ type PathAggregate = {
   client_errors: number;
   server_errors: number;
   rate_limited_responses: number;
+  status_401_responses: number;
+  status_403_responses: number;
+  status_429_responses: number;
+  status_502_responses: number;
+  status_503_responses: number;
+  status_504_responses: number;
   latency_sum_ms: number;
   latency_count: number;
 }
@@ -38,6 +44,12 @@ function emptyMetrics(): PortalMetricsData {
       client_errors: 0,
       server_errors: 0,
       rate_limited_responses: 0,
+      status_401_responses: 0,
+      status_403_responses: 0,
+      status_429_responses: 0,
+      status_502_responses: 0,
+      status_503_responses: 0,
+      status_504_responses: 0,
       average_latency_ms: 0
     },
     runtime: {
@@ -82,6 +94,12 @@ function ensurePath(paths: Map<string, PathAggregate>, path: string): PathAggreg
     client_errors: 0,
     server_errors: 0,
     rate_limited_responses: 0,
+    status_401_responses: 0,
+    status_403_responses: 0,
+    status_429_responses: 0,
+    status_502_responses: 0,
+    status_503_responses: 0,
+    status_504_responses: 0,
     latency_sum_ms: 0,
     latency_count: 0
   }
@@ -254,6 +272,12 @@ function summarizePathMetrics(paths: Map<string, PathAggregate>): PortalPathMetr
       client_errors: value.client_errors,
       server_errors: value.server_errors,
       rate_limited_responses: value.rate_limited_responses,
+      status_401_responses: value.status_401_responses,
+      status_403_responses: value.status_403_responses,
+      status_429_responses: value.status_429_responses,
+      status_502_responses: value.status_502_responses,
+      status_503_responses: value.status_503_responses,
+      status_504_responses: value.status_504_responses,
       average_latency_ms: value.latency_count > 0 ? value.latency_sum_ms / value.latency_count : 0
     }))
     .sort((a, b) => {
@@ -303,13 +327,39 @@ export function parsePrometheusMetrics(text: string): PortalMetricsData {
         } else if ((labels.status ?? '').startsWith('4')) {
           aggregate.client_errors += value
           payload.summary.client_errors += value
-          if ((labels.status ?? '') === '429') {
-            aggregate.rate_limited_responses += value
-            payload.summary.rate_limited_responses += value
+          switch (labels.status ?? '') {
+            case '401':
+              aggregate.status_401_responses += value
+              payload.summary.status_401_responses += value
+              break
+            case '403':
+              aggregate.status_403_responses += value
+              payload.summary.status_403_responses += value
+              break
+            case '429':
+              aggregate.status_429_responses += value
+              payload.summary.status_429_responses += value
+              aggregate.rate_limited_responses += value
+              payload.summary.rate_limited_responses += value
+              break
           }
         } else if ((labels.status ?? '').startsWith('5')) {
           aggregate.server_errors += value
           payload.summary.server_errors += value
+          switch (labels.status ?? '') {
+            case '502':
+              aggregate.status_502_responses += value
+              payload.summary.status_502_responses += value
+              break
+            case '503':
+              aggregate.status_503_responses += value
+              payload.summary.status_503_responses += value
+              break
+            case '504':
+              aggregate.status_504_responses += value
+              payload.summary.status_504_responses += value
+              break
+          }
         }
         break
       }
@@ -392,6 +442,12 @@ function summarizeFilteredMetrics(metricsData: PortalMetricsData, paths: PortalP
   let clientErrors = 0
   let serverErrors = 0
   let rateLimitedResponses = 0
+  let status_401_responses = 0
+  let status_403_responses = 0
+  let status_429_responses = 0
+  let status_502_responses = 0
+  let status_503_responses = 0
+  let status_504_responses = 0
   let weightedLatencyMs = 0
   let weightedLatencyCount = 0
 
@@ -401,6 +457,12 @@ function summarizeFilteredMetrics(metricsData: PortalMetricsData, paths: PortalP
     clientErrors += pathMetric.client_errors
     serverErrors += pathMetric.server_errors
     rateLimitedResponses += pathMetric.rate_limited_responses
+    status_401_responses += pathMetric.status_401_responses ?? 0
+    status_403_responses += pathMetric.status_403_responses ?? 0
+    status_429_responses += pathMetric.status_429_responses ?? 0
+    status_502_responses += pathMetric.status_502_responses ?? 0
+    status_503_responses += pathMetric.status_503_responses ?? 0
+    status_504_responses += pathMetric.status_504_responses ?? 0
     if (pathMetric.requests > 0) {
       weightedLatencyMs += pathMetric.average_latency_ms * pathMetric.requests
       weightedLatencyCount += pathMetric.requests
@@ -416,6 +478,12 @@ function summarizeFilteredMetrics(metricsData: PortalMetricsData, paths: PortalP
       client_errors: clientErrors,
       server_errors: serverErrors,
       rate_limited_responses: rateLimitedResponses,
+      status_401_responses,
+      status_403_responses,
+      status_429_responses,
+      status_502_responses,
+      status_503_responses,
+      status_504_responses,
       average_latency_ms: weightedLatencyCount > 0 ? weightedLatencyMs / weightedLatencyCount : 0
     },
     paths,

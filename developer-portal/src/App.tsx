@@ -362,10 +362,10 @@ export default function App() {
     : state.page === 'admin'
       ? 'Config Admin'
       : state.page === 'metrics-trend'
-      ? t('metrics.trendTitle')
-      : state.page === 'metrics'
-        ? t('nav.metrics')
-        : t('nav.posture')
+        ? t('metrics.trendTitle')
+        : state.page === 'metrics'
+          ? t('nav.metrics')
+          : t('nav.posture')
 
   return (
     <>

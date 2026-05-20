@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { buildRouteMetricKey } from '../metrics'
 import { runtimeSignals } from '../runtimeSignals'
 import { getGroupDisplayName } from '../groupDisplay'
+import { surfacePriorityScore } from '../priority'
 
 interface Props {
   group: GroupData
@@ -93,13 +94,20 @@ export default function RoutesList({
     return m && m.requests > 0 ? (m.client_errors + m.server_errors) / m.requests : 0
   }
   function riskScore(r: RouteInfo) {
-    let s = 0
-    if (r.auth_required) s += 2
-    if (r.has_rate_limit) s += 1
-    if (r.deprecated || r.metadata.status === 'deprecated') s += 3
-    if (r.metadata.status === 'experimental') s += 2
-    if (r.has_openapi) s += 1
-    return s
+    return surfacePriorityScore({
+      authRequired: r.auth_required,
+      hasRateLimit: r.has_rate_limit,
+      deprecated: r.deprecated || r.metadata.status === 'deprecated',
+      experimental: r.metadata.status === 'experimental',
+      hasOpenApi: r.has_openapi,
+      managementSurface: r.surface_context === 'management',
+      ownerTeam: r.metadata.owner_team,
+      docsUrl: r.metadata.docs_url,
+      runbookUrl: r.metadata.runbook_url,
+      supportChannel: r.metadata.support_channel,
+      requests: routeTraffic(r),
+      errorRate: routeErrRate(r),
+    })
   }
 
   function compareRoutes(a: RouteInfo, b: RouteInfo) {
@@ -124,6 +132,16 @@ export default function RoutesList({
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{getGroupDisplayName(group.name)}</span>
+            {group.routes.length > 0 && (
+              <span className="badge badge-gray" style={{ fontSize: 10 }}>
+                HTTP <span style={{ opacity: 0.55, margin: '0 4px' }}>·</span> {group.routes.length}
+              </span>
+            )}
+            {group.websockets.length > 0 && (
+              <span className="badge badge-gray" style={{ fontSize: 10 }}>
+                WS <span style={{ opacity: 0.55, margin: '0 4px' }}>·</span> {group.websockets.length}
+              </span>
+            )}
             <span className="badge badge-outline" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{group.prefix || '/'}</span>
             {group.auth_required && <span className="badge badge-red">Auth</span>}
             {group.has_rate_limit && <span className="badge badge-amber">Group RL</span>}
@@ -150,7 +168,7 @@ export default function RoutesList({
         <>
           <div style={{ padding: '6px 16px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)' }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-faint)' }}>
-              HTTP — {group.routes.length} {group.routes.length === 1 ? 'route' : 'routes'}
+              HTTP
             </span>
           </div>
           <table className="data-table" style={{ borderRadius: 0, border: 'none' }}>

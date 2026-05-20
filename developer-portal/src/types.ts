@@ -146,6 +146,12 @@ export interface PortalMetricsSummary {
   client_errors: number;
   server_errors: number;
   rate_limited_responses: number;
+  status_401_responses: number;
+  status_403_responses: number;
+  status_429_responses: number;
+  status_502_responses: number;
+  status_503_responses: number;
+  status_504_responses: number;
   average_latency_ms: number;
 }
 
@@ -163,6 +169,12 @@ export interface PortalPathMetric {
   client_errors: number;
   server_errors: number;
   rate_limited_responses: number;
+  status_401_responses: number;
+  status_403_responses: number;
+  status_429_responses: number;
+  status_502_responses: number;
+  status_503_responses: number;
+  status_504_responses: number;
   average_latency_ms: number;
   primary_match?: PortalMetricMatch | null;
   match_count?: number;
@@ -271,4 +283,12 @@ export interface PortalMetricsTrendPoint {
   unmatched_requests: number;
   matched_paths: number;
   unmatched_paths: number;
+  status_401_responses: number;
+  status_403_responses: number;
+  status_429_responses: number;
+  status_other_client_responses: number;
+  status_502_responses: number;
+  status_503_responses: number;
+  status_504_responses: number;
+  status_other_server_responses: number;
 }

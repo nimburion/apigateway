@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { GroupData, GroupInfo, PortalSurfaceMetricSummary } from '../types'
 import { CatalogSortMode } from './useNavigation'
+import { surfacePriorityScore } from '../priority'
 
 interface FilterParams {
   routes: GroupData[]
@@ -76,15 +77,6 @@ export function useFilters(params: FilterParams) {
     if (!m || m.requests <= 0) return 0
     return (m.client_errors + m.server_errors) / m.requests
   }
-  const riskOf = (item: { auth_required?: boolean; has_rate_limit?: boolean; deprecated?: boolean; metadata?: { status?: string } }) => {
-    let s = 0
-    if (item.auth_required) s += 2
-    if (item.has_rate_limit) s += 1
-    if (item.deprecated || item.metadata?.status === 'deprecated') s += 3
-    if (item.metadata?.status === 'experimental') s += 2
-    return s
-  }
-
   const compareByMode = <T extends {
     name: string; metadata?: { owner_team?: string; status?: string }
     route_count?: number; websocket_count?: number; routes?: unknown[]; websockets?: unknown[]
@@ -103,7 +95,33 @@ export function useFilters(params: FilterParams) {
       return d !== 0 ? d : trafficOf(b.name) - trafficOf(a.name) || a.name.localeCompare(b.name)
     }
     if (sortMode === 'risk') {
-      const d = riskOf(b) - riskOf(a)
+      const aScore = surfacePriorityScore({
+        authRequired: Boolean(a.auth_required),
+        hasRateLimit: Boolean(a.has_rate_limit),
+        deprecated: Boolean(a.deprecated || a.metadata?.status === 'deprecated'),
+        experimental: a.metadata?.status === 'experimental',
+        managementSurface: a.name === '__management__',
+        ownerTeam: a.metadata?.owner_team,
+        docsUrl: undefined,
+        runbookUrl: undefined,
+        supportChannel: undefined,
+        requests: trafficOf(a.name),
+        errorRate: errorRateOf(a.name),
+      })
+      const bScore = surfacePriorityScore({
+        authRequired: Boolean(b.auth_required),
+        hasRateLimit: Boolean(b.has_rate_limit),
+        deprecated: Boolean(b.deprecated || b.metadata?.status === 'deprecated'),
+        experimental: b.metadata?.status === 'experimental',
+        managementSurface: b.name === '__management__',
+        ownerTeam: b.metadata?.owner_team,
+        docsUrl: undefined,
+        runbookUrl: undefined,
+        supportChannel: undefined,
+        requests: trafficOf(b.name),
+        errorRate: errorRateOf(b.name),
+      })
+      const d = bScore - aScore
       return d !== 0 ? d : a.name.localeCompare(b.name)
     }
     if (sortMode === 'surface') {

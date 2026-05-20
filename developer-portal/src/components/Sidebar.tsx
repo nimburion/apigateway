@@ -21,15 +21,7 @@ export default function Sidebar({
   onNavigate, onThemeToggle, onLocaleChange,
 }: Props) {
   const managed = groups.some(g => g.runtime_info?.portal_mode === 'managed')
-  const navItems: Array<{ key: PortalPage; label: string; count: number }> = [
-    { key: 'groups', label: t('nav.groupsInfo'), count: groups.filter(g => g.name !== '__management__').length },
-    { key: 'posture', label: t('nav.posture'), count: visibleSurfaceCount },
-    { key: 'metrics', label: t('nav.metrics'), count: 0 },
-    { key: 'metrics-trend', label: t('metrics.trendTitle'), count: 0 },
-  ]
-  if (managed) {
-    navItems.push({ key: 'admin', label: 'Config Admin', count: 0 })
-  }
+  const metricsExpanded = activePage === 'metrics' || activePage === 'metrics-trend'
 
   return (
     <aside className="app-sidebar">
@@ -40,18 +32,45 @@ export default function Sidebar({
 
       {/* Main nav */}
       <div className="sidebar-section-label">{t('nav.overview')}</div>
-      {navItems.map(item => (
+      <button
+        type="button"
+        onClick={() => onNavigate('groups', selectedGroup)}
+        className={`sidebar-item${activePage === 'groups' ? ' active' : ''}`}
+        aria-current={activePage === 'groups' ? 'page' : undefined}
+      >
+        <span>{t('nav.groupsInfo')}</span>
+        <span className="sidebar-badge">{groups.filter(g => g.name !== '__management__').length}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onNavigate('posture', selectedGroup)}
+        className={`sidebar-item${activePage === 'posture' ? ' active' : ''}`}
+        aria-current={activePage === 'posture' ? 'page' : undefined}
+      >
+        <span>{t('nav.posture')}</span>
+        <span className="sidebar-badge">{visibleSurfaceCount}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onNavigate('metrics', selectedGroup)}
+        className={`sidebar-item${metricsExpanded ? ' active' : ''}`}
+        aria-current={metricsExpanded ? 'page' : undefined}
+      >
+        <span>{t('nav.metrics')}</span>
+      </button>
+
+      {managed && (
         <button
-          key={item.key}
           type="button"
-          onClick={() => onNavigate(item.key, selectedGroup)}
-          className={`sidebar-item${activePage === item.key ? ' active' : ''}`}
-          aria-current={activePage === item.key ? 'page' : undefined}
+          onClick={() => onNavigate('admin', null)}
+          className={`sidebar-item${activePage === 'admin' ? ' active' : ''}`}
+          aria-current={activePage === 'admin' ? 'page' : undefined}
         >
-          <span>{item.label}</span>
-          {item.count > 0 && <span className="sidebar-badge">{item.count}</span>}
+          <span>Config Admin</span>
         </button>
-      ))}
+      )}
 
       {/* Footer */}
       <div className="sidebar-footer">
