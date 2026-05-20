@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.10'
           cache: true
 
       - name: Download Go modules
@@ -40,7 +40,7 @@ jobs:
     name: Run Verification
     uses: ./.github/workflows/reusable-test.yml
     with:
-      go-version: '1.25.8'
+      go-version: '1.25.10'
       node-version: '20'
       coverage-threshold: 50
     permissions:
