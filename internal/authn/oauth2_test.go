@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	gatewaycfg "github.com/nimburion/apigateway/internal/config"
-	"github.com/nimburion/nimburion/pkg/middleware/session"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/session"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
 func TestMapOAuth2TokenExchangeError(t *testing.T) {
@@ -390,7 +390,7 @@ func TestRegisterOAuth2Routes_CallbackInvalidState(t *testing.T) {
 	ctx := &oauthTestContext{
 		req:  httptest.NewRequest(http.MethodGet, "/auth/callback?code=abc&state=xyz", nil),
 		res:  &oauthTestResponseWriter{},
-		data: map[string]any{session.ContextKey: &session.Session{}},
+		data: map[string]any{"session": &session.Session{}},
 	}
 	if err := r.getHandlers["/auth/callback"](ctx); err != nil {
 		t.Fatalf("unexpected error: %v", err)

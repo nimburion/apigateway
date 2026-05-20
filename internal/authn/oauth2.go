@@ -13,17 +13,19 @@ import (
 	"time"
 
 	gatewaycfg "github.com/nimburion/apigateway/internal/config"
+	"github.com/nimburion/apigateway/internal/portalmeta"
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/middleware/session"
+	httpopenapi "github.com/nimburion/nimburion/pkg/http/openapi"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/session"
 	logpkg "github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
 func RegisterOAuth2Routes(r router.Router, cfg *gatewaycfg.OAuth2Config, logger logpkg.Logger) {
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	authCfg := cfg.ToAuthConfig()
 
-	r.GET("/auth/login", func(c router.Context) error {
+	r.GET("/auth/login", portalmeta.Annotate(httpopenapi.Annotate(func(c router.Context) error {
 		state, err := randomState(32)
 		if err != nil {
 			logger.Error("failed generating oauth state", "error", err)
@@ -55,9 +57,12 @@ func RegisterOAuth2Routes(r router.Router, cfg *gatewaycfg.OAuth2Config, logger 
 
 		http.Redirect(c.Response(), c.Request(), authorizeURL, http.StatusFound)
 		return nil
-	})
+	}, httpopenapi.EndpointAnnotations{
+		Summary: "OAuth2 login",
+		Tags:    []string{"auth", "oauth2"},
+	}), portalmeta.OAuth2Login(cfg.AuthorizeURL)))
 
-	r.GET("/auth/callback", func(c router.Context) error {
+	r.GET("/auth/callback", portalmeta.Annotate(httpopenapi.Annotate(func(c router.Context) error {
 		query := c.Request().URL.Query()
 		oauthError := strings.TrimSpace(query.Get("error"))
 		if oauthError != "" {
@@ -125,16 +130,22 @@ func RegisterOAuth2Routes(r router.Router, cfg *gatewaycfg.OAuth2Config, logger 
 			"scope":       token.Scope,
 			"redirect_to": redirectTo,
 		})
-	})
+	}, httpopenapi.EndpointAnnotations{
+		Summary: "OAuth2 callback",
+		Tags:    []string{"auth", "oauth2"},
+	}), portalmeta.OAuth2Callback(cfg.AuthorizeURL)))
 
-	r.POST("/auth/logout", func(c router.Context) error {
+	r.POST("/auth/logout", portalmeta.Annotate(httpopenapi.Annotate(func(c router.Context) error {
 		if err := session.ClearOAuthTokens(c); err != nil {
 			logger.Error("failed to clear tokens", "error", err)
 		}
 		return c.JSON(http.StatusOK, map[string]string{"status": "logged_out"})
-	})
+	}, httpopenapi.EndpointAnnotations{
+		Summary: "OAuth2 logout",
+		Tags:    []string{"auth", "oauth2"},
+	}), portalmeta.OAuth2Logout(cfg.AuthorizeURL)))
 
-	r.POST("/auth/refresh", func(c router.Context) error {
+	r.POST("/auth/refresh", portalmeta.Annotate(httpopenapi.Annotate(func(c router.Context) error {
 		_, refreshToken, ok := session.GetOAuthTokens(c)
 		if !ok || refreshToken == "" {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing refresh token"})
@@ -157,7 +168,10 @@ func RegisterOAuth2Routes(r router.Router, cfg *gatewaycfg.OAuth2Config, logger 
 			"expires_in": token.ExpiresIn,
 			"scope":      token.Scope,
 		})
-	})
+	}, httpopenapi.EndpointAnnotations{
+		Summary: "OAuth2 refresh",
+		Tags:    []string{"auth", "oauth2"},
+	}), portalmeta.OAuth2Refresh(cfg.AuthorizeURL)))
 }
 
 func sanitizeReturnTo(raw string) string {

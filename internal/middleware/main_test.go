@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 type testContext struct {

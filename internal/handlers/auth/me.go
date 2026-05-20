@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func MeHandler(c router.Context) error {

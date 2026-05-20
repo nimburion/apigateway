@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 type testResponseWriter struct {
 	*httptest.ResponseRecorder
 }
 
-func (w testResponseWriter) Status() int  { return w.Code }
+func (w testResponseWriter) Status() int   { return w.Code }
 func (w testResponseWriter) Written() bool { return w.Code != 0 }
 
 type testContext struct {
@@ -27,15 +27,15 @@ func newTestContext(req *http.Request) *testContext {
 	return &testContext{req: req, resp: testResponseWriter{httptest.NewRecorder()}, data: map[string]interface{}{}}
 }
 
-func (c *testContext) Request() *http.Request                 { return c.req }
-func (c *testContext) SetRequest(r *http.Request)             { c.req = r }
-func (c *testContext) Response() router.ResponseWriter        { return c.resp }
-func (c *testContext) SetResponse(w router.ResponseWriter)    { c.resp = w.(testResponseWriter) }
-func (c *testContext) Param(name string) string               { return "" }
-func (c *testContext) Query(name string) string               { return "" }
-func (c *testContext) Bind(v interface{}) error               { return json.NewDecoder(c.req.Body).Decode(v) }
-func (c *testContext) Get(key string) interface{}             { return c.data[key] }
-func (c *testContext) Set(key string, value interface{})      { c.data[key] = value }
+func (c *testContext) Request() *http.Request              { return c.req }
+func (c *testContext) SetRequest(r *http.Request)          { c.req = r }
+func (c *testContext) Response() router.ResponseWriter     { return c.resp }
+func (c *testContext) SetResponse(w router.ResponseWriter) { c.resp = w.(testResponseWriter) }
+func (c *testContext) Param(name string) string            { return "" }
+func (c *testContext) Query(name string) string            { return "" }
+func (c *testContext) Bind(v interface{}) error            { return json.NewDecoder(c.req.Body).Decode(v) }
+func (c *testContext) Get(key string) interface{}          { return c.data[key] }
+func (c *testContext) Set(key string, value interface{})   { c.data[key] = value }
 func (c *testContext) JSON(code int, v interface{}) error {
 	c.resp.Header().Set("Content-Type", "application/json")
 	c.resp.WriteHeader(code)

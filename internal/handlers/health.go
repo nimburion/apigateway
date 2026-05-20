@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func HealthHandler(serviceName string) router.HandlerFunc {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 // ProxyWebSocket proxies WebSocket connections to a backend service.

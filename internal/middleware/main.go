@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/middleware/ratelimit"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/ratelimit"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func RateLimitKeyByTenantAndSubject(c router.Context) string {
