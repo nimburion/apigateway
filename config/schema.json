@@ -2674,11 +2674,16 @@
         "spec_path": {
           "type": "string",
           "default": "/api/openapi/openapi.yaml"
+        },
+        "provision_generated_spec": {
+          "type": "boolean",
+          "default": false
         }
       },
       "default": {
         "Enabled": false,
-        "SpecPath": "/api/openapi/openapi.yaml"
+        "SpecPath": "/api/openapi/openapi.yaml",
+        "ProvisionGeneratedSpec": false
       },
       "additionalProperties": false
     },
@@ -3597,7 +3602,7 @@
   },
   "$id": "github.com/nimburion/apigateway/config/schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "schema.version=55342f5c1ef7c3881bed0a1cfc553483bdcb2befe1fad320f7eef1825166ec16",
+  "$comment": "schema.version=9bdf4cbe0f5270b67e3fed09d7fd04d40f2b84de260c1cfb473565a90795ed6e",
   "title": "Service Configuration",
   "description": "Schema for service configuration.",
   "required": [
